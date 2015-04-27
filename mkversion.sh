@@ -48,7 +48,7 @@ user=${LOGNAME-$USER}
 # decimal (0-9) digits only. Length must be even number of digits.
 rpq_timestamp=`date +%Y%m%d%H%M%S`
 
-trap 'rm -f version.c' 0 1 2 15
+#trap 'rm -f version.c' 0 1 2 15
 
 cat <<EOF >version.c
 char *build = "${2-x3270} v$version $builddate $user";
@@ -59,4 +59,4 @@ const char *build_rpq_timestamp = "$rpq_timestamp";
 const char *build_rpq_version = "$version";
 EOF
 
-${1-cc} -c version.c
+#${1-cc} -c version.c

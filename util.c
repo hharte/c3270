@@ -573,8 +573,8 @@ tilde_subst(const char *s)
 	if (p == (struct passwd *)NULL)
 		r = NewString(s);
 	else {
-		r = Malloc(strlen(p->pw_dir) + strlen(rest) + 1);
-		(void) strcpy(r, p->pw_dir);
+		r = Malloc(strlen(getenv("HOME")) + strlen(rest) + 1);
+		(void) strcpy(r, getenv("HOME"));
 		(void) strcat(r, rest);
 	}
 	return r;

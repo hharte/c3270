@@ -55,7 +55,7 @@
 
 #include <errno.h>
 #include <locale.h>
-#if !defined(_WIN32) /*[*/
+#if !defined(_WIN32) && !defined(ANDROID) /*[*/
 #include <langinfo.h>
 #endif /*]*/
 
@@ -111,7 +111,11 @@ charset_init(char *csname)
 	setlocale(LC_ALL, "");
 
 	/* Figure out the locale code set (character set encoding). */
+#if !defined(ANDROID)
 	codeset_name = nl_langinfo(CODESET);
+#else
+	codeset_name = xs_buffer("US-ASCII");
+#endif /* !defined(ANDROID) */
 #if defined(__CYGWIN__) /*[*/
 	/*
 	 * Cygwin's locale support is quite limited.  If the locale

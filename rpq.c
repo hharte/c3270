@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2009, Paul Mattes.
+ * Copyright (c) 2005-2009, 2013-2014 Paul Mattes.
  * Copyright (c) 2004-2005, Don Russell.
  * All rights reserved.
  *
@@ -36,20 +36,23 @@
 #include "globals.h"
 #include <errno.h>
 #if !defined(_WIN32) /*[*/
-#include <netinet/in.h>
-#include <arpa/inet.h>
+# include <netinet/in.h>
+# include <arpa/inet.h>
 #endif /*]*/
 #include <sys/types.h>
 #if !defined(_WIN32) /*[*/
-#include <sys/socket.h>
-#include <netdb.h>
+# include <sys/socket.h>
+# include <netdb.h>
 #endif /*]*/
 #include <assert.h>
 #include <stdarg.h>
 #include "3270ds.h"
 #include "appres.h"
 
+#include "ctlrc.h"
 #include "popupsc.h"
+#include "sfc.h"	 /* has to come before rpqc.h */
+#include "rpqc.h"
 #include "tablesc.h"
 #include "telnetc.h"
 #include "trace_dsc.h"
@@ -450,9 +453,9 @@ get_rpq_timezone(void)
 	}
 
 	/* sanity check: difference cannot exceed +/- 12 hours */
-	if (labs(delta) > 720L)
+	if (labs((long)delta) > 720L)
 		rpq_warning("RPQ timezone exceeds 12 hour UTC offset");
-	return (labs(delta) > 720L)? 3 : (int) delta;
+	return (labs((long)delta) > 720L)? 3 : (int) delta;
 }
 
 
@@ -606,7 +609,7 @@ get_rpq_address(unsigned char *buf, const int maxlen)
 	/* Is there a user override? */
 	if ((kw->allow_oride) && (kw->oride > 0)) {
 		char *p1, *p2, *rpqtext;
-#if defined(AF_INET6) /*[*/
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
 		struct addrinfo *res;
 		int ga_err;
 #else /*][*/
@@ -625,7 +628,7 @@ get_rpq_address(unsigned char *buf, const int maxlen)
 		}
 		*p2 = '\0';
 
-#if defined(AF_INET6) /*[*/
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
 		ga_err = getaddrinfo(rpqtext, NULL, NULL, &res);
 		if (ga_err == 0) {
 			void *src = NULL;
@@ -681,7 +684,7 @@ get_rpq_address(unsigned char *buf, const int maxlen)
 		}
 		SET16(buf, AF_INET);
 		x += 2;
-		if (x + sizeof(in_addr_t) <= maxlen) {
+		if (x + (int)sizeof(in_addr_t) <= maxlen) {
 			(void) memcpy(buf, &ia, sizeof(in_addr_t));
 			x += sizeof(in_addr_t);
 		} else {
@@ -695,7 +698,7 @@ get_rpq_address(unsigned char *buf, const int maxlen)
 		union {
 			struct sockaddr sa;
 			struct sockaddr_in sa4;
-#if defined(AF_INET6) /*[*/
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
 			struct sockaddr_in6 sa6;
 #endif /*]*/
 		} u;
@@ -712,7 +715,7 @@ get_rpq_address(unsigned char *buf, const int maxlen)
 			src = &u.sa4.sin_addr;
 			len = sizeof(struct in_addr);
 			break;
-#if defined(AF_INET6) /*[*/
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
 		case AF_INET6:
 			src = &u.sa6.sin6_addr;
 			len = sizeof(struct in6_addr);

@@ -683,10 +683,12 @@ enable_dbcs
 enable_ft
 enable_local_process
 enable_printer
+enable_menus
 enable_script
 enable_ssl
 enable_tn3270e
 enable_trace
+enable_ipv6
 enable_history
 '
       ac_precious_vars='build_alias
@@ -1317,10 +1319,12 @@ Optional Features:
   --disable-ft            leave out file transfer support
   --disable-local-process leave out local process support
   --disable-printer       leave out printer session support
+  --disable-menus         leave out menu support
   --disable-script        leave out scripting support
   --disable-ssl           leave out OpenSSL support
   --disable-tn3270e       leave out TN3270E support
   --disable-trace         leave out tracing support
+  --disable-ipv6         leave out IPv6 support
   --enable-history        include experimental history support
 
 Optional Packages:
@@ -3156,11 +3160,12 @@ case $host_os in *\ *) host_os=`echo "$host_os" | sed 's/ /-/g'`;; esac
 XPOSIX=""
 XANSI=""
 case "$host_os" in
-hpux)		XPOSIX=-D_XOPEN_SOURCE_EXTENDED
+hpux|*cygwin*)	XPOSIX=-D_XOPEN_SOURCE_EXTENDED
 		;;
 solaris2*)	XANSI=-D__EXTENSIONS__
 		;;
 darwin*)	XPRECOMP=-no-cpp-precomp
+    		XPOSIX=-D_XOPEN_SOURCE_EXTENDED
 		;;
 linux*)		XANSI="-D_POSIX_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE"
 		;;
@@ -4837,6 +4842,16 @@ case "$enable_printer" in
 
 	;;
 esac
+# Check whether --enable-menus was given.
+if test "${enable_menus+set}" = set; then :
+  enableval=$enable_menus;
+fi
+
+case "$enable_menus" in
+""|yes)	$as_echo "#define X3270_MENUS 1" >>confdefs.h
+
+	;;
+esac
 # Check whether --enable-script was given.
 if test "${enable_script+set}" = set; then :
   enableval=$enable_script;
@@ -4875,6 +4890,16 @@ fi
 
 case "$enable_trace" in
 ""|yes)	$as_echo "#define X3270_TRACE 1" >>confdefs.h
+
+	;;
+esac
+# Check whether --enable-ipv6 was given.
+if test "${enable_ipv6+set}" = set; then :
+  enableval=$enable_ipv6;
+fi
+
+case "$enable_ipv6" in
+""|yes) $as_echo "#define X3270_IPV6 1" >>confdefs.h
 
 	;;
 esac

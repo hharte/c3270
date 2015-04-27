@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2009, Paul Mattes.
+ * Copyright (c) 1995-2009, 2013 Paul Mattes.
  * Copyright (c) 2004, Don Russell.
  * All rights reserved.
  *
@@ -41,6 +41,12 @@ struct ctl_char {
 	char value[3];
 };
 
+extern int ns_brcvd;
+extern int ns_bsent;
+extern int ns_rrcvd;
+extern int ns_rsent;
+extern time_t ns_time;
+
 extern void net_abort(void);
 extern Boolean net_add_dummy_tn3270e(void);
 extern void net_add_eor(unsigned char *buf, int len);
@@ -48,10 +54,10 @@ extern void net_break(void);
 extern void net_charmode(void);
 extern int net_connect(const char *, char *, Boolean, Boolean *, Boolean *);
 extern void net_disconnect(void);
-extern void net_exception(void);
+extern void net_exception(unsigned long fd, ioid_t id);
 extern int net_getsockname(void *buf, int *len);
 extern void net_hexansi_out(unsigned char *buf, int len);
-extern void net_input(void);
+extern void net_input(unsigned long fd, ioid_t id);
 extern void net_interrupt(void);
 extern void net_linemode(void);
 extern struct ctl_char *net_linemode_chars(void);
@@ -60,6 +66,7 @@ extern const char *net_query_bind_plu_name(void);
 extern const char *net_query_connection_state(void);
 extern const char *net_query_host(void);
 extern const char *net_query_lu_name(void);
+extern const char *net_query_ssl(void);
 extern void net_sendc(char c);
 extern void net_sends(const char *s);
 extern void net_send_erase(void);
@@ -77,3 +84,4 @@ extern Boolean net_bound(void);
 #if defined(HAVE_LIBSSL) /*[*/
 extern void ssl_base_init(char *cl_hostname, Boolean *pending);
 #endif /*]*/
+extern int linemode;

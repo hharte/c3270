@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2009, Paul Mattes.
+ * Copyright (c) 1993-2009, 2013, 2014 Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta, GA
  *  30332.
@@ -73,13 +73,34 @@ do_toggle(int ix)
 	do_toggle_reason(ix, TT_INTERACTIVE);
 }
 
+void
+do_menu_toggle(int ix)
+{
+	do_toggle_reason(ix, TT_XMENU);
+}
+
+#if defined(X3270_TRACE) /*[*/
+static void
+init_toggle_fallible(int ix)
+{
+	if (toggled(ix)) {
+		appres.toggle[ix].upcall(&appres.toggle[ix], TT_INITIAL);
+# if defined(X3270_MENUS) || defined(C3270) /*[*/
+		if (!toggled(ix)) {
+			menubar_retoggle(&appres.toggle[ix], ix);
+		}
+# endif /*]*/
+	}
+}
+#endif /*]*/
+
 /*
  * Called from system initialization code to handle initial toggle settings.
  */
 void
 initialize_toggles(void)
 {
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	appres.toggle[MONOCASE].upcall =         toggle_monocase;
 #endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
@@ -87,16 +108,17 @@ initialize_toggles(void)
 	appres.toggle[CURSOR_BLINK].upcall =     toggle_cursorBlink;
 	appres.toggle[SHOW_TIMING].upcall =      toggle_showTiming;
 	appres.toggle[CURSOR_POS].upcall =       toggle_cursorPos;
-	appres.toggle[MARGINED_PASTE].upcall =   toggle_nop;
 	appres.toggle[RECTANGLE_SELECT].upcall = toggle_nop;
 	appres.toggle[SCROLL_BAR].upcall =       toggle_scrollBar;
 	appres.toggle[CROSSHAIR].upcall =        toggle_crosshair;
 	appres.toggle[VISIBLE_CONTROL].upcall =  toggle_visible_control;
 #endif /*]*/
+#if defined(X3270_DISPLAY) || defined(WC3270) /*[*/
+	appres.toggle[MARGINED_PASTE].upcall =   toggle_nop;
+#endif /*]*/
 #if defined(X3270_TRACE) /*[*/
-	appres.toggle[DS_TRACE].upcall =         toggle_dsTrace;
+	appres.toggle[TRACING].upcall =          toggle_tracing;
 	appres.toggle[SCREEN_TRACE].upcall =     toggle_screenTrace;
-	appres.toggle[EVENT_TRACE].upcall =      toggle_eventTrace;
 #endif /*]*/
 #if defined(X3270_ANSI) /*[*/
 	appres.toggle[LINE_WRAP].upcall =        toggle_lineWrap;
@@ -110,15 +132,8 @@ initialize_toggles(void)
 #endif /*]*/
 
 #if defined(X3270_TRACE) /*[*/
-	if (toggled(DS_TRACE))
-		appres.toggle[DS_TRACE].upcall(&appres.toggle[DS_TRACE],
-		    TT_INITIAL);
-	if (toggled(EVENT_TRACE))
-		appres.toggle[EVENT_TRACE].upcall(&appres.toggle[EVENT_TRACE],
-		    TT_INITIAL);
-	if (toggled(SCREEN_TRACE))
-		appres.toggle[SCREEN_TRACE].upcall(&appres.toggle[SCREEN_TRACE],
-		    TT_INITIAL);
+	init_toggle_fallible(TRACING);
+	init_toggle_fallible(SCREEN_TRACE);
 #endif /*]*/
 }
 
@@ -130,13 +145,9 @@ shutdown_toggles(void)
 {
 #if defined(X3270_TRACE) /*[*/
 	/* Clean up the data stream trace monitor window. */
-	if (toggled(DS_TRACE)) {
-		appres.toggle[DS_TRACE].value = False;
-		toggle_dsTrace(&appres.toggle[DS_TRACE], TT_FINAL);
-	}
-	if (toggled(EVENT_TRACE)) {
-		appres.toggle[EVENT_TRACE].value = False;
-		toggle_dsTrace(&appres.toggle[EVENT_TRACE], TT_FINAL);
+	if (toggled(TRACING)) {
+		appres.toggle[TRACING].value = False;
+		toggle_tracing(&appres.toggle[TRACING], TT_FINAL);
 	}
 
 	/* Clean up the screen trace file. */

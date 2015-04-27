@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1996-2012, Paul Mattes.
+ * Copyright (c) 1996-2014, Paul Mattes.
  * Copyright (c) 1995, Dick Altenbern.
  * All rights reserved.
  *
@@ -36,65 +36,57 @@
 
 #if defined(X3270_FT) /*[*/
 
-#if defined(X3270_DISPLAY) /*[*/
-#include <X11/StringDefs.h>
-#include <X11/Xaw/Toggle.h>
-#include <X11/Xaw/Command.h>
-#include <X11/Xaw/Form.h>
-#include <X11/Shell.h>
-#include <X11/Xaw/AsciiText.h>
-#include <X11/Xaw/TextSrc.h>
-#include <X11/Xaw/TextSink.h>
-#include <X11/Xaw/AsciiSrc.h>
-#include <X11/Xaw/AsciiSink.h>
-#endif /*]*/
-#include <errno.h>
+# include <assert.h>
 
-#include "appres.h"
-#include "actionsc.h"
-#include "charsetc.h"
-#include "ft_cutc.h"
-#include "ft_dftc.h"
-#include "ftc.h"
-#include "dialogc.h"
-#include "hostc.h"
-#if defined(C3270) || defined(WC3270) /*[*/
-#include "icmdc.h"
-#endif /*]*/
-#include "kybdc.h"
-#include "macrosc.h"
-#include "objects.h"
-#include "popupsc.h"
-#include "screenc.h"
-#include "tablesc.h"
-#include "telnetc.h"
-#include "utilc.h"
-#if defined(_MSC_VER) /*[*/
-#include "Msc/deprecated.h"
-#endif /*]*/
+# if defined(X3270_DISPLAY) /*[*/
+#  include <X11/StringDefs.h>
+#  include <X11/Xaw/Toggle.h>
+#  include <X11/Xaw/Command.h>
+#  include <X11/Xaw/Form.h>
+#  include <X11/Shell.h>
+#  include <X11/Xaw/AsciiText.h>
+#  include <X11/Xaw/TextSrc.h>
+#  include <X11/Xaw/TextSink.h>
+#  include <X11/Xaw/AsciiSrc.h>
+#  include <X11/Xaw/AsciiSink.h>
+# endif /*]*/
+# include <errno.h>
+
+# include "appres.h"
+# include "actionsc.h"
+# include "charsetc.h"
+# include "ft_cutc.h"
+# include "ft_dftc.h"
+# include "unicodec.h"
+# include "ftc.h"
+# include "dialogc.h"
+# include "hostc.h"
+# if defined(C3270) /*[*/
+#  include "icmdc.h"
+# endif /*]*/
+# include "kybdc.h"
+# include "macrosc.h"
+# include "menubarc.h"
+# include "objects.h"
+# include "popupsc.h"
+# include "screenc.h"
+# include "tablesc.h"
+# include "telnetc.h"
+# include "utilc.h"
 
 /* Macros. */
-#define eos(s)	strchr((s), '\0')
+# define eos(s)	strchr((s), '\0')
 
-#if defined(X3270_DISPLAY) /*[*/
-#define FILE_WIDTH	300	/* width of file name widgets */
-#define MARGIN		3	/* distance from margins to widgets */
-#define CLOSE_VGAP	0	/* distance between paired toggles */
-#define FAR_VGAP	10	/* distance between single toggles and groups */
-#define BUTTON_GAP	5	/* horizontal distance between buttons */
-#define COLUMN_GAP	40	/* distance between columns */
-#endif /*]*/
+# if defined(X3270_DISPLAY) /*[*/
+#  define FILE_WIDTH	300	/* width of file name widgets */
+#  define MARGIN		3	/* distance from margins to widgets */
+#  define CLOSE_VGAP	0	/* distance between paired toggles */
+#  define FAR_VGAP	10	/* distance between single toggles and groups */
+#  define BUTTON_GAP	5	/* horizontal distance between buttons */
+#  define COLUMN_GAP	40	/* distance between columns */
+# endif /*]*/
 
-#define BN	(Boolean *)NULL
-
-/* Externals. */
-#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
-extern Pixmap diamond;
-extern Pixmap no_diamond;
-extern Pixmap null;
-extern Pixmap dot;
-extern Pixmap no_dot;
-#endif /*]*/
+# define BN	(Boolean *)NULL
 
 /* Globals. */
 enum ft_state ft_state = FT_NONE;	/* File transfer state */
@@ -105,62 +97,74 @@ Boolean ascii_flag = True;		/* Convert to ascii */
 Boolean cr_flag = True;			/* Add crlf to each line */
 Boolean remap_flag = True;		/* Remap ASCII<->EBCDIC */
 unsigned long ft_length = 0;		/* Length of transfer */
+#if defined(_WIN32) /*[*/
+int ft_windows_codepage;		/* Windows code page */
+#endif /*]*/
 
 /* Statics. */
-#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
+# if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 static Widget ft_dialog, ft_shell, local_file, host_file;
 static Widget lrecl_widget, blksize_widget;
 static Widget primspace_widget, secspace_widget;
 static Widget send_toggle, receive_toggle;
-static Widget vm_toggle, tso_toggle;
+static Widget vm_toggle, tso_toggle, cics_toggle;
 static Widget ascii_toggle, binary_toggle;
 static Widget cr_widget;
 static Widget remap_widget;
 static Widget buffersize_widget;
-#endif /*]*/
+# endif /*]*/
 
 static char *ft_host_filename;		/* Host file to transfer to/from */
 static Boolean receive_flag = True;	/* Current transfer is receive */
 static Boolean append_flag = False;	/* Append transfer */
-static Boolean vm_flag = False;		/* VM Transfer flag */
-
-#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
+typedef enum {
+    HT_TSO,
+    HT_VM,
+    HT_CICS
+} host_type_t;
+static host_type_t host_type = HT_TSO;	/* Host type */
+# if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
+static Boolean host_is_tso = True;	/* Booleans used by dialog */
+static Boolean host_is_tso_or_vm = True;/*  sensitivity logic */
+static host_type_t s_tso = HT_TSO;	/* Values used by toggle callbacks. */
+static host_type_t s_vm = HT_VM;
+static host_type_t s_cics = HT_CICS;
 static Widget recfm_options[5];
 static Widget units_options[5];
 static struct toggle_list recfm_toggles = { recfm_options };
 static struct toggle_list units_toggles = { units_options };
-#endif /*]*/
+# endif /*]*/
 
 static enum recfm {
 	DEFAULT_RECFM, RECFM_FIXED, RECFM_VARIABLE, RECFM_UNDEFINED
 } recfm = DEFAULT_RECFM;
-#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
+# if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 static Boolean recfm_default = True;
 static enum recfm r_default_recfm = DEFAULT_RECFM;
 static enum recfm r_fixed = RECFM_FIXED;
 static enum recfm r_variable = RECFM_VARIABLE;
 static enum recfm r_undefined = RECFM_UNDEFINED;
-#endif /*]*/
+# endif /*]*/
 
 static enum units {
 	DEFAULT_UNITS, TRACKS, CYLINDERS, AVBLOCK
 } units = DEFAULT_UNITS;
-#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
+# if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 static Boolean units_default = True;
 static enum units u_default_units = DEFAULT_UNITS;
 static enum units u_tracks = TRACKS;
 static enum units u_cylinders = CYLINDERS;
 static enum units u_avblock = AVBLOCK;
-#endif /*]*/
+# endif /*]*/
 
 static Boolean allow_overwrite = False;
-#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
+# if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 static sr_t *ft_sr = (sr_t *)NULL;
 
 static Widget progress_shell, from_file, to_file;
 static Widget ft_status, waiting, aborting;
 static String status_string;
-#endif /*]*/
+# endif /*]*/
 static struct timeval t0;		/* Starting time */
 static Boolean ft_is_cut;		/* File transfer is CUT-style */
 
@@ -212,7 +216,10 @@ Boolean ft_last_dbcs = False;
 static Widget overwrite_shell;
 #endif /*]*/
 static Boolean ft_is_action;
-static unsigned long ft_start_id = 0;
+#if defined(C3270) /*[*/
+static Boolean ft_is_interactive = False;
+#endif /*]*/
+static ioid_t ft_start_id = NULL_IOID;
 
 #if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 static void ft_cancel(Widget w, XtPointer client_data, XtPointer call_data);
@@ -243,7 +250,8 @@ static void toggle_cr(Widget w, XtPointer client_data, XtPointer call_data);
 static void toggle_remap(Widget w, XtPointer client_data, XtPointer call_data);
 static void toggle_receive(Widget w, XtPointer client_data,
     XtPointer call_data);
-static void toggle_vm(Widget w, XtPointer client_data, XtPointer call_data);
+static void toggle_host_type(Widget w, XtPointer client_data,
+    XtPointer call_data);
 static void units_callback(Widget w, XtPointer user_data, XtPointer call_data);
 #endif /*]*/
 static void ft_connected(Boolean ignored);
@@ -277,7 +285,7 @@ local_fflag(void)
 
 /* Timeout function for stalled transfers. */
 static void
-ft_didnt_start(void)
+ft_didnt_start(ioid_t id _is_unused)
 {
 	if (ft_local_file != NULL) {
 		fclose(ft_local_file);
@@ -327,6 +335,7 @@ ft_popup_init(void)
 	Widget buffersize_label;
 	Widget start_button;
 	char buflen_buf[128];
+	Widget spacer_toggle;
 
 	/* Register for state changes. */
 	register_schange(ST_CONNECT, ft_connected);
@@ -426,14 +435,22 @@ ft_popup_init(void)
 	    XtNhorizDistance, MARGIN,
 	    XtNborderWidth, 0,
 	    NULL);
-	dialog_apply_bitmap(receive_toggle, receive_flag ? diamond : no_diamond);
+	dialog_apply_bitmap(receive_toggle, receive_flag? diamond: no_diamond);
 	XtAddCallback(receive_toggle, XtNcallback, toggle_receive,
 	    (XtPointer)&s_true);
+	spacer_toggle = XtVaCreateManagedWidget(
+	    "empty", labelWidgetClass, ft_dialog,
+	    XtNfromVert, receive_toggle,
+	    XtNvertDistance, CLOSE_VGAP,
+	    XtNhorizDistance, MARGIN,
+	    XtNborderWidth, 0,
+	    XtNlabel, "",
+	    NULL);
 
 	/* Create ASCII/binary toggles. */
 	ascii_toggle = XtVaCreateManagedWidget(
 	    "ascii", commandWidgetClass, ft_dialog,
-	    XtNfromVert, receive_toggle,
+	    XtNfromVert, spacer_toggle,
 	    XtNvertDistance, FAR_VGAP,
 	    XtNhorizDistance, MARGIN,
 	    XtNborderWidth, 0,
@@ -473,7 +490,7 @@ ft_popup_init(void)
 	    NULL);
 	dialog_register_sensitivity(recfm_label,
 	    &receive_flag, False,
-	    BN, False,
+	    &host_is_tso_or_vm, True,
 	    BN, False);
 
 	recfm_options[0] = XtVaCreateManagedWidget(
@@ -489,7 +506,7 @@ ft_popup_init(void)
 	    (XtPointer)&r_default_recfm);
 	dialog_register_sensitivity(recfm_options[0],
 	    &receive_flag, False,
-	    BN, False,
+	    &host_is_tso_or_vm, True,
 	    BN, False);
 
 	recfm_options[1] = XtVaCreateManagedWidget(
@@ -505,7 +522,7 @@ ft_popup_init(void)
 	    (XtPointer)&r_fixed);
 	dialog_register_sensitivity(recfm_options[1],
 	    &receive_flag, False,
-	    BN, False,
+	    &host_is_tso_or_vm, True,
 	    BN, False);
 
 	recfm_options[2] = XtVaCreateManagedWidget(
@@ -521,7 +538,7 @@ ft_popup_init(void)
 	    (XtPointer)&r_variable);
 	dialog_register_sensitivity(recfm_options[2],
 	    &receive_flag, False,
-	    BN, False,
+	    &host_is_tso_or_vm, True,
 	    BN, False);
 
 	recfm_options[3] = XtVaCreateManagedWidget(
@@ -537,7 +554,7 @@ ft_popup_init(void)
 	    (XtPointer)&r_undefined);
 	dialog_register_sensitivity(recfm_options[3],
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    BN, False);
 
 	lrecl_label = XtVaCreateManagedWidget(
@@ -550,7 +567,7 @@ ft_popup_init(void)
 	dialog_register_sensitivity(lrecl_label,
 	    &receive_flag, False,
 	    &recfm_default, False,
-	    BN, False);
+	    &host_is_tso_or_vm, True);
 	lrecl_widget = XtVaCreateManagedWidget(
 	    "value", asciiTextWidgetClass, ft_dialog,
 	    XtNfromVert, recfm_options[3],
@@ -571,7 +588,7 @@ ft_popup_init(void)
 	dialog_register_sensitivity(lrecl_widget,
 	    &receive_flag, False,
 	    &recfm_default, False,
-	    BN, False);
+	    &host_is_tso_or_vm, True);
 
 	blksize_label = XtVaCreateManagedWidget(
 	    "blksize", labelWidgetClass, ft_dialog,
@@ -584,7 +601,7 @@ ft_popup_init(void)
 	dialog_register_sensitivity(blksize_label,
 	    &receive_flag, False,
 	    &recfm_default, False,
-	    BN, False);
+	    &host_is_tso_or_vm, True);
 	blksize_widget = XtVaCreateManagedWidget(
 	    "value", asciiTextWidgetClass, ft_dialog,
 	    XtNfromVert, lrecl_widget,
@@ -605,8 +622,7 @@ ft_popup_init(void)
 	dialog_register_sensitivity(blksize_widget,
 	    &receive_flag, False,
 	    &recfm_default, False,
-	    BN, False);
-
+	    &host_is_tso_or_vm, True);
 
 	/* Find the widest widget in the left column. */
 	XtVaGetValues(send_toggle, XtNwidth, &maxw, NULL);
@@ -626,7 +642,7 @@ ft_popup_init(void)
 
 	/* Create the right column buttons. */
 
-	/* Create VM/TSO toggle. */
+	/* Create VM/TSO/CICS toggles. */
 	vm_toggle = XtVaCreateManagedWidget(
 	    "vm", commandWidgetClass, ft_dialog,
 	    XtNfromVert, host_label,
@@ -635,8 +651,10 @@ ft_popup_init(void)
 	    XtNhorizDistance, COLUMN_GAP,
 	    XtNborderWidth, 0,
 	    NULL);
-	dialog_apply_bitmap(vm_toggle, vm_flag ? diamond : no_diamond);
-	XtAddCallback(vm_toggle, XtNcallback, toggle_vm, (XtPointer)&s_true);
+	dialog_apply_bitmap(vm_toggle,
+		(host_type == HT_VM)? diamond: no_diamond);
+	XtAddCallback(vm_toggle, XtNcallback, toggle_host_type,
+		(XtPointer)&s_vm);
 	tso_toggle =  XtVaCreateManagedWidget(
 	    "tso", commandWidgetClass, ft_dialog,
 	    XtNfromVert, vm_toggle,
@@ -645,13 +663,27 @@ ft_popup_init(void)
 	    XtNhorizDistance, COLUMN_GAP,
 	    XtNborderWidth, 0,
 	    NULL);
-	dialog_apply_bitmap(tso_toggle, vm_flag ? no_diamond : diamond);
-	XtAddCallback(tso_toggle, XtNcallback, toggle_vm, (XtPointer)&s_false);
+	dialog_apply_bitmap(tso_toggle,
+		(host_type == HT_TSO)? diamond : no_diamond);
+	XtAddCallback(tso_toggle, XtNcallback, toggle_host_type,
+		(XtPointer)&s_tso);
+	cics_toggle =  XtVaCreateManagedWidget(
+	    "cics", commandWidgetClass, ft_dialog,
+	    XtNfromVert, tso_toggle,
+	    XtNvertDistance, CLOSE_VGAP,
+	    XtNfromHoriz, h_ref,
+	    XtNhorizDistance, COLUMN_GAP,
+	    XtNborderWidth, 0,
+	    NULL);
+	dialog_apply_bitmap(cics_toggle,
+		(host_type == HT_CICS)? diamond : no_diamond);
+	XtAddCallback(cics_toggle, XtNcallback, toggle_host_type,
+		(XtPointer)&s_cics);
 
 	/* Create CR toggle. */
 	cr_widget = XtVaCreateManagedWidget(
 	    "cr", commandWidgetClass, ft_dialog,
-	    XtNfromVert, tso_toggle,
+	    XtNfromVert, cics_toggle,
 	    XtNvertDistance, FAR_VGAP,
 	    XtNfromHoriz, h_ref,
 	    XtNhorizDistance, COLUMN_GAP,
@@ -691,7 +723,7 @@ ft_popup_init(void)
 	    NULL);
 	dialog_register_sensitivity(units_label,
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    BN, False);
 
 	units_options[0] = XtVaCreateManagedWidget(
@@ -708,7 +740,7 @@ ft_popup_init(void)
 	    units_callback, (XtPointer)&u_default_units);
 	dialog_register_sensitivity(units_options[0],
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    BN, False);
 
 	units_options[1] = XtVaCreateManagedWidget(
@@ -725,7 +757,7 @@ ft_popup_init(void)
 	    units_callback, (XtPointer)&u_tracks);
 	dialog_register_sensitivity(units_options[1],
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    BN, False);
 
 	units_options[2] = XtVaCreateManagedWidget(
@@ -742,7 +774,7 @@ ft_popup_init(void)
 	    units_callback, (XtPointer)&u_cylinders);
 	dialog_register_sensitivity(units_options[2],
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    BN, False);
 
 	units_options[3] = XtVaCreateManagedWidget(
@@ -759,7 +791,7 @@ ft_popup_init(void)
 	    units_callback, (XtPointer)&u_avblock);
 	dialog_register_sensitivity(units_options[3],
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    BN, False);
 
 	primspace_label = XtVaCreateManagedWidget(
@@ -772,7 +804,7 @@ ft_popup_init(void)
 	    NULL);
 	dialog_register_sensitivity(primspace_label,
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    &units_default, False);
 	primspace_widget = XtVaCreateManagedWidget(
 	    "value", asciiTextWidgetClass, ft_dialog,
@@ -793,7 +825,7 @@ ft_popup_init(void)
 		    (XtPointer)&t_numeric);
 	dialog_register_sensitivity(primspace_widget,
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    &units_default, False);
 
 	secspace_label = XtVaCreateManagedWidget(
@@ -807,7 +839,7 @@ ft_popup_init(void)
 	dialog_match_dimension(primspace_label, secspace_label, XtNwidth);
 	dialog_register_sensitivity(secspace_label,
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    &units_default, False);
 	secspace_widget = XtVaCreateManagedWidget(
 	    "value", asciiTextWidgetClass, ft_dialog,
@@ -828,7 +860,7 @@ ft_popup_init(void)
 		    (XtPointer)&t_numeric);
 	dialog_register_sensitivity(secspace_widget,
 	    &receive_flag, False,
-	    &vm_flag, False,
+	    &host_is_tso, True,
 	    &units_default, False);
 
 	/* Set up the DFT buffer size. */
@@ -861,7 +893,7 @@ ft_popup_init(void)
 	    BN, False,
 	    BN, False);
 	set_dft_buffersize();
-	(void) sprintf(buflen_buf, "%d", dft_buffersize);
+	(void) snprintf(buflen_buf, sizeof(buflen_buf), "%d", dft_buffersize);
 	XtVaSetValues(buffersize_widget, XtNstring, buflen_buf, NULL);
 
 	/* Set up the buttons at the bottom. */
@@ -932,8 +964,8 @@ static void
 ft_start_callback(Widget w _is_unused, XtPointer call_parms _is_unused,
 	XtPointer call_data _is_unused)
 {
+	XtPopdown(ft_shell);
 	if (ft_start()) {
-		XtPopdown(ft_shell);
 		popup_progress();
 	}
 }
@@ -1001,27 +1033,80 @@ toggle_remap(Widget w, XtPointer client_data _is_unused,
 	dialog_mark_toggle(w, remap_flag ? dot : no_dot);
 }
 
-/* TSO/VM option. */
+/*
+ * Set the individual Boolean variables used by the dialog sensitivity
+ * functions, and call dialog_check_sensitivity().
+ */
 static void
-toggle_vm(Widget w _is_unused, XtPointer client_data _is_unused,
+set_host_type_booleans(void)
+{
+	switch (host_type) {
+	case HT_TSO:
+		host_is_tso = True;
+		host_is_tso_or_vm = True;
+		break;
+	case HT_VM:
+		host_is_tso = False;
+		host_is_tso_or_vm = True;
+		break;
+	case HT_CICS:
+		host_is_tso = False;
+		host_is_tso_or_vm = False;
+	}
+
+	dialog_check_sensitivity(&host_is_tso);
+	dialog_check_sensitivity(&host_is_tso_or_vm);
+}
+
+/* TSO/VM/CICS option. */
+static void
+toggle_host_type(Widget w _is_unused, XtPointer client_data _is_unused,
     XtPointer call_data _is_unused)
 {
+	host_type_t old_host_type;
+
 	/* Toggle the flag. */
-	vm_flag = *(Boolean *)client_data;
+	old_host_type = host_type;
+	host_type = *(host_type_t *)client_data;
+	if (host_type == old_host_type) {
+		return;
+	}
 
 	/* Change the widget states. */
-	dialog_mark_toggle(vm_toggle, vm_flag ? diamond : no_diamond);
-	dialog_mark_toggle(tso_toggle, vm_flag ? no_diamond : diamond);
+	dialog_mark_toggle(vm_toggle,
+		(host_type == HT_VM)? diamond: no_diamond);
+	dialog_mark_toggle(tso_toggle,
+		(host_type == HT_TSO)? diamond: no_diamond);
+	dialog_mark_toggle(cics_toggle,
+		(host_type == HT_CICS)? diamond: no_diamond);
 
-	if (vm_flag) {
-		if (recfm == RECFM_UNDEFINED) {
+	if (host_type != HT_TSO) {
+		/* Reset record format. */
+		if ((host_type == HT_VM && recfm == RECFM_UNDEFINED) ||
+		    (host_type == HT_CICS && recfm != DEFAULT_RECFM)) {
 			recfm = DEFAULT_RECFM;
 			recfm_default = True;
 			dialog_flip_toggles(&recfm_toggles,
 			    recfm_toggles.widgets[0]);
 		}
+		/* Reset units. */
+		if (units != DEFAULT_UNITS) {
+			units = DEFAULT_UNITS;
+			units_default = True;
+			dialog_flip_toggles(&units_toggles,
+			    units_toggles.widgets[0]);
+		}
+		if (host_type == HT_CICS) {
+			/* Reset logical record size and block size. */
+			XtVaSetValues(lrecl_widget, XtNstring, "", NULL);
+			XtVaSetValues(blksize_widget, XtNstring, "", NULL);
+		}
+		/* Reset primary and secondary space. */
+		XtVaSetValues(primspace_widget, XtNstring, "", NULL);
+		XtVaSetValues(secspace_widget, XtNstring, "", NULL);
 	}
-	dialog_check_sensitivity(&vm_flag);
+
+	set_host_type_booleans();
 }
 
 /*
@@ -1051,7 +1136,8 @@ ft_start(void)
 	else
 		dft_buffersize = 0;
 	set_dft_buffersize();
-	(void) sprintf(updated_buffersize, "%d", dft_buffersize);
+	(void) snprintf(updated_buffersize, sizeof(updated_buffersize), "%d",
+		dft_buffersize);
 	XtVaSetValues(buffersize_widget, XtNstring, updated_buffersize, NULL);
 
 	/* Get the host file from its widget */
@@ -1087,26 +1173,33 @@ ft_start(void)
 
 	/* Build the ind$file command */
 	op[0] = '\0';
-	if (ascii_flag)
-		strcat(op, " ascii");
-	if (cr_flag)
-		strcat(op, " crlf");
-	if (append_flag && !receive_flag)
-		strcat(op, " append");
+	if (ascii_flag) {
+		strcat(op, " ASCII");
+	} else if (host_type == HT_CICS) {
+		strcat(op, " BINARY");
+	}
+	if (cr_flag) {
+		strcat(op, " CRLF");
+	} else if (host_type == HT_CICS) {
+		strcat(op, " NOCRLF");
+	}
+	if (append_flag && !receive_flag) {
+		strcat(op, " APPEND");
+	}
 	if (!receive_flag) {
-		if (!vm_flag) {
+		if (host_type == HT_TSO) {
 			if (recfm != DEFAULT_RECFM) {
 				/* RECFM Entered, process */
-				strcat(op, " recfm(");
+				strcat(op, " RECFM(");
 				switch (recfm) {
 				    case RECFM_FIXED:
-					strcat(op, "f");
+					strcat(op, "F");
 					break;
 				    case RECFM_VARIABLE:
-					strcat(op, "v");
+					strcat(op, "V");
 					break;
 				    case RECFM_UNDEFINED:
-					strcat(op, "u");
+					strcat(op, "U");
 					break;
 				    default:
 					break;
@@ -1116,25 +1209,25 @@ ft_start(void)
 				    XtNstring, &lrecl,
 				    NULL);
 				if (strlen(lrecl) > 0)
-					sprintf(eos(op), " lrecl(%s)", lrecl);
+					sprintf(eos(op), " LRECL(%s)", lrecl);
 				XtVaGetValues(blksize_widget,
 				    XtNstring, &blksize,
 				    NULL);
 				if (strlen(blksize) > 0)
-					sprintf(eos(op), " blksize(%s)",
+					sprintf(eos(op), " BLKSIZE(%s)",
 					    blksize);
 			}
 			if (units != DEFAULT_UNITS) {
 				/* Space Entered, processs it */
 				switch (units) {
 				    case TRACKS:
-					strcat(op, " tracks");
+					strcat(op, " TRACKS");
 					break;
 				    case CYLINDERS:
-					strcat(op, " cylinders");
+					strcat(op, " CYLINDERS");
 					break;
 				    case AVBLOCK:
-					strcat(op, " avblock");
+					strcat(op, " AVBLOCK");
 					break;
 				    default:
 					break;
@@ -1142,7 +1235,7 @@ ft_start(void)
 				XtVaGetValues(primspace_widget, XtNstring,
 				    &primspace, NULL);
 				if (strlen(primspace) > 0) {
-					sprintf(eos(op), " space(%s",
+					sprintf(eos(op), " SPACE(%s",
 					    primspace);
 					XtVaGetValues(secspace_widget,
 					    XtNstring, &secspace,
@@ -1153,15 +1246,15 @@ ft_start(void)
 					strcat(op, ")");
 				}
 			}
-		} else {
+		} else if (host_type == HT_VM) {
 			if (recfm != DEFAULT_RECFM) {
-				strcat(op, " recfm ");
+				strcat(op, " RECFM ");
 				switch (recfm) {
 				    case RECFM_FIXED:
-					strcat(op, "f");
+					strcat(op, "F");
 					break;
 				    case RECFM_VARIABLE:
-					strcat(op, "v");
+					strcat(op, "V");
 					break;
 				    default:
 					break;
@@ -1171,21 +1264,21 @@ ft_start(void)
 				    XtNstring, &lrecl,
 				    NULL);
 				if (strlen(lrecl) > 0)
-					sprintf(eos(op), " lrecl %s", lrecl);
+					sprintf(eos(op), " LRECL %s", lrecl);
 			}
 		}
 	}
 
 	/* Insert the '(' for VM options. */
-	if (strlen(op) > 0 && vm_flag) {
+	if (strlen(op) > 0 && host_type != HT_TSO) {
 		opts[0] = ' ';
 		opts[1] = '(';
 		op = opts;
 	}
 
 	/* Build the whole command. */
-	cmd = xs_buffer("ind\\e005Bfile %s %s%s\\n",
-	    receive_flag ? "get" : "put", ft_host_filename, op);
+	cmd = xs_buffer("IND\\e005BFILE %s %s%s\\n",
+	    receive_flag ? "GET" : "PUT", ft_host_filename, op);
 
 	/* Erase the line and enter the command. */
 	flen = kybd_prime();
@@ -1497,6 +1590,10 @@ ft_complete(const char *errmsg)
 
 	/* Clean up the state. */
 	ft_state = FT_NONE;
+	if (ft_start_id != NULL_IOID) {
+		RemoveTimeOut(ft_start_id);
+		ft_start_id = NULL_IOID;
+	}
 
 #if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 	/* Pop down the in-progress shell. */
@@ -1508,7 +1605,8 @@ ft_complete(const char *errmsg)
 	if (errmsg != CN) {
 		char *msg_copy = NewString(errmsg);
 
-		/* Make sure the error message will fit on the display. */
+#if defined(X3270_DISPLAY) /*[*/
+		/* Make sure the error message will fit on the pop-up. */
 		if (strlen(msg_copy) > 50 && strchr(msg_copy, '\n') == CN) {
 			char *s = msg_copy + 50;
 
@@ -1517,9 +1615,15 @@ ft_complete(const char *errmsg)
 			if (s > msg_copy)
 				*s = '\n';	/* yikes! */
 		}
+#endif /*]*/
 #if defined(C3270) /*[*/
-		printf("\r%79s\n", "");
-		fflush(stdout);
+		/* Clear out the progress display. */
+		if (ft_is_interactive) {
+			printf("\r%79s\n", "");
+			fflush(stdout);
+		} else {
+			popup_an_info(" ");
+		}
 #endif /*]*/
 		popup_an_error("%s", msg_copy);
 		Free(msg_copy);
@@ -1534,13 +1638,18 @@ ft_complete(const char *errmsg)
 			((double)(t1.tv_sec - t0.tv_sec) + 
 			 (double)(t1.tv_usec - t0.tv_usec) / 1.0e6);
 		buf = Malloc(256);
-		(void) sprintf(buf, get_message("ftComplete"), ft_length,
+		(void) snprintf(buf, 256, get_message("ftComplete"), ft_length,
 			display_scale(bytes_sec, kbuf, sizeof(kbuf)),
 			ft_is_cut ? "CUT" : "DFT");
 		if (ft_is_action) {
 #if defined(C3270) /*[*/
-			printf("\r%79s\n", "");
-			fflush(stdout);
+			/* Clear out the progress display. */
+			if (ft_is_interactive) {
+				printf("\r%79s\n", "");
+				fflush(stdout);
+			} else {
+				popup_an_info(" ");
+			}
 #endif /*]*/
 			sms_info("%s", buf);
 			sms_continue();
@@ -1551,6 +1660,9 @@ ft_complete(const char *errmsg)
 #endif /*]*/
 		Free(buf);
 	}
+#if defined(C3270) /*[*/
+	ft_is_interactive = False;
+#endif /*]*/
 }
 
 /* Update the bytes-transferred count on the progress pop-up. */
@@ -1562,14 +1674,20 @@ ft_update_length(void)
 
 	/* Format the message */
 	if (!ft_is_action) {
-		sprintf(text_string, status_string, ft_length);
+		(void) snprintf(text_string, sizeof(text_string),
+			status_string, ft_length);
 
 		XtVaSetValues(ft_status, XtNlabel, text_string, NULL);
 	}
 #endif /*]*/
 #if defined(C3270) /*[*/
-	printf("\r%79s\rTransferred %lu bytes. ", "", ft_length);
-	fflush(stdout);
+	if (ft_is_interactive) {
+		printf("\r%79s\rTransferred %lu bytes. ", "", ft_length);
+		fflush(stdout);
+	} else {
+		popup_an_info("Transferred %lu bytes.", ft_length);
+	}
+
 #endif /*]*/
 }
 
@@ -1579,9 +1697,9 @@ ft_running(Boolean is_cut)
 {
 	if (ft_state == FT_AWAIT_ACK) {
 		ft_state = FT_RUNNING;
-		if (ft_start_id) {
+		if (ft_start_id != NULL_IOID) {
 			RemoveTimeOut(ft_start_id);
-			ft_start_id = 0;
+			ft_start_id = NULL_IOID;
 		}
 	}
 	ft_is_cut = is_cut;
@@ -1639,7 +1757,7 @@ ft_in3270(Boolean ignored _is_unused)
  *   Direction=send|receive	default receive
  *   HostFile=name		required
  *   LocalFile=name			required
- *   Host=[tso|vm]		default tso
+ *   Host=[tso|vm|cics]		default tso
  *   Mode=[ascii|binary]	default ascii
  *   Cr=[add|remove|keep]	default add/remove
  *   Remap=[yes|no]     	default yes
@@ -1650,31 +1768,9 @@ ft_in3270(Boolean ignored _is_unused)
  *   Allocation=[default|tracks|cylinders|avblock] default default
  *   PrimarySpace=n		no default
  *   SecondarySpace=n		no default
+ *   BufferSize			no default
+ *   WindowsCodePage=n		no default
  */
-static struct {
-	const char *name;
-	char *value;
-	const char *keyword[4];
-} tp[] = {
-	{ "Direction",		CN, { "receive", "send" } },
-	{ "HostFile" },
-	{ "LocalFile" },
-	{ "Host",		CN, { "tso", "vm" } },
-	{ "Mode",		CN, { "ascii", "binary" } },
-	{ "Cr",			CN, { "auto", "remove",	"add", "keep" } },
-	{ "Remap",		CN, { "yes", "no" } },
-	{ "Exist",		CN, { "keep", "replace", "append" } },
-	{ "Recfm",		CN, { "default", "fixed", "variable",
-				      "undefined" } },
-	{ "Lrecl" },
-	{ "Blksize" },
-	{ "Allocation",		CN, { "default", "tracks", "cylinders",
-				      "avblock" } },
-	{ "PrimarySpace" },
-	{ "SecondarySpace" },
-	{ "BufferSize" },
-	{ CN }
-};
 enum ft_parm_name {
 	PARM_DIRECTION,
 	PARM_HOST_FILE,
@@ -1691,7 +1787,36 @@ enum ft_parm_name {
 	PARM_PRIMARY_SPACE,
 	PARM_SECONDARY_SPACE,
 	PARM_BUFFER_SIZE,
+#if defined(_WIN32) /*[*/
+	PARM_WINDOWS_CODEPAGE,
+#endif /*]*/
 	N_PARMS
+};
+static struct {
+	const char *name;
+	char *value;
+	const char *keyword[4];
+} tp[N_PARMS] = {
+	{ "Direction",		CN, { "receive", "send" } },
+	{ "HostFile" },
+	{ "LocalFile" },
+	{ "Host",		CN, { "tso", "vm", "cics" } },
+	{ "Mode",		CN, { "ascii", "binary" } },
+	{ "Cr",			CN, { "auto", "remove",	"add", "keep" } },
+	{ "Remap",		CN, { "yes", "no" } },
+	{ "Exist",		CN, { "keep", "replace", "append" } },
+	{ "Recfm",		CN, { "default", "fixed", "variable",
+				      "undefined" } },
+	{ "Lrecl" },
+	{ "Blksize" },
+	{ "Allocation",		CN, { "default", "tracks", "cylinders",
+				      "avblock" } },
+	{ "PrimarySpace" },
+	{ "SecondarySpace" },
+	{ "BufferSize" },
+#if defined(_WIN32) /*[*/
+	{ "WindowsCodePage" },
+#endif /*]*/
 };
 
 void  
@@ -1721,7 +1846,7 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 		return;
 	}
 
-#if defined(C3270) || defined(WC3270) /*[*/
+#if defined(C3270) /*[*/
 	/* Check for interactive mode. */
 	if (xnparams == 0 && escaped) {
 	    	if (interactive_transfer(&xparams, &xnparams) < 0) {
@@ -1730,6 +1855,9 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 		    	action_output("Aborted");
 		    	return;
 		}
+	}
+	if (escaped) {
+		ft_is_interactive = True;
 	}
 #endif /*]*/
 
@@ -1779,6 +1907,9 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 				    case PARM_PRIMARY_SPACE:
 				    case PARM_SECONDARY_SPACE:
 				    case PARM_BUFFER_SIZE:
+#if defined(_WIN32) /*[*/
+				    case PARM_WINDOWS_CODEPAGE:
+#endif /*]*/
 					l = strtol(eq + 1, &ptr, 10);
 					l = l; /* keep gcc happy */
 					if (ptr == eq + 1 || *ptr) {
@@ -1786,6 +1917,7 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 							"value: '%s'", eq + 1);
 						return;
 					}
+					break;
 					break;
 				    default:
 					break;
@@ -1827,12 +1959,24 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 	if (!strcasecmp(tp[PARM_CR].value, "auto")) {
 		cr_flag = ascii_flag;
 	} else {
+		if (!ascii_flag) {
+			popup_an_error("Invalid 'Cr' option for ASCII mode");
+			return;
+		}
 		cr_flag = !strcasecmp(tp[PARM_CR].value, "remove") ||
 			  !strcasecmp(tp[PARM_CR].value, "add");
 	}
 	if (ascii_flag)
 	    	remap_flag = !strcasecmp(tp[PARM_REMAP].value, "yes");
-	vm_flag = !strcasecmp(tp[PARM_HOST].value, "vm");
+	if (!strcasecmp(tp[PARM_HOST].value, "tso")) {
+		host_type = HT_TSO;
+	} else if (!strcasecmp(tp[PARM_HOST].value, "vm")) {
+		host_type = HT_VM;
+	} else if (!strcasecmp(tp[PARM_HOST].value, "cics")) {
+		host_type = HT_CICS;
+	} else {
+		assert(0);
+	}
 	recfm = DEFAULT_RECFM;
 	for (k = 0; tp[PARM_RECFM].keyword[k] != CN && k < 4; k++) {
 		if (!strcasecmp(tp[PARM_RECFM].value,
@@ -1849,6 +1993,16 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 			break;
 		}
 	}
+
+#if defined(_WIN32) /*[*/
+	if (tp[PARM_WINDOWS_CODEPAGE].value != CN) {
+		ft_windows_codepage = atoi(tp[PARM_WINDOWS_CODEPAGE].value);
+	} else if (appres.ft_cp) {
+		ft_windows_codepage = appres.ft_cp;
+	} else {
+		ft_windows_codepage = appres.local_cp;
+	}
+#endif /*]*/
 
 	ft_host_filename = tp[PARM_HOST_FILE].value;
 	ft_local_filename = tp[PARM_LOCAL_FILE].value;
@@ -1873,55 +2027,62 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 
 	/* Build the ind$file command */
 	op[0] = '\0';
-	if (ascii_flag)
-		strcat(op, " ascii");
-	if (cr_flag)
-		strcat(op, " crlf");
-	if (append_flag && !receive_flag)
-		strcat(op, " append");
+	if (ascii_flag) {
+		strcat(op, " ASCII");
+	} else if (host_type == HT_CICS) {
+		strcat(op, " BINARY");
+	}
+	if (cr_flag) {
+		strcat(op, " CRLF");
+	} else if (host_type == HT_CICS) {
+		strcat(op, " NOCRLF");
+	}
+	if (append_flag && !receive_flag) {
+		strcat(op, " APPEND");
+	}
 	if (!receive_flag) {
-		if (!vm_flag) {
+		if (host_type == HT_TSO) {
 			if (recfm != DEFAULT_RECFM) {
 				/* RECFM Entered, process */
-				strcat(op, " recfm(");
+				strcat(op, " RECFM(");
 				switch (recfm) {
 				    case RECFM_FIXED:
-					strcat(op, "f");
+					strcat(op, "F");
 					break;
 				    case RECFM_VARIABLE:
-					strcat(op, "v");
+					strcat(op, "V");
 					break;
 				    case RECFM_UNDEFINED:
-					strcat(op, "u");
+					strcat(op, "U");
 					break;
 				    default:
 					break;
 				};
 				strcat(op, ")");
 				if (tp[PARM_LRECL].value != CN)
-					sprintf(eos(op), " lrecl(%s)",
+					sprintf(eos(op), " LRECL(%s)",
 					    tp[PARM_LRECL].value);
 				if (tp[PARM_BLKSIZE].value != CN)
-					sprintf(eos(op), " blksize(%s)",
+					sprintf(eos(op), " BLKSIZE(%s)",
 					    tp[PARM_BLKSIZE].value);
 			}
 			if (units != DEFAULT_UNITS) {
 				/* Space Entered, processs it */
 				switch (units) {
 				    case TRACKS:
-					strcat(op, " tracks");
+					strcat(op, " TRACKS");
 					break;
 				    case CYLINDERS:
-					strcat(op, " cylinders");
+					strcat(op, " CYLINDERS");
 					break;
 				    case AVBLOCK:
-					strcat(op, " avblock");
+					strcat(op, " AVBLOCK");
 					break;
 				    default:
 					break;
 				};
 				if (tp[PARM_PRIMARY_SPACE].value != CN) {
-					sprintf(eos(op), " space(%s",
+					sprintf(eos(op), " SPACE(%s",
 					    tp[PARM_PRIMARY_SPACE].value);
 					if (tp[PARM_SECONDARY_SPACE].value)
 						sprintf(eos(op), ",%s",
@@ -1929,37 +2090,37 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 					strcat(op, ")");
 				}
 			}
-		} else {
+		} else if (host_type == HT_VM) {
 			if (recfm != DEFAULT_RECFM) {
-				strcat(op, " recfm ");
+				strcat(op, " RECFM ");
 				switch (recfm) {
 				    case RECFM_FIXED:
-					strcat(op, "f");
+					strcat(op, "F");
 					break;
 				    case RECFM_VARIABLE:
-					strcat(op, "v");
+					strcat(op, "V");
 					break;
 				    default:
 					break;
 				};
 
 				if (tp[PARM_LRECL].value)
-					sprintf(eos(op), " lrecl %s",
+					sprintf(eos(op), " LRECL %s",
 					    tp[PARM_LRECL].value);
 			}
 		}
 	}
 
 	/* Insert the '(' for VM options. */
-	if (strlen(op) > 0 && vm_flag) {
+	if (strlen(op) > 0 && host_type != HT_TSO) {
 		opts[0] = ' ';
 		opts[1] = '(';
 		op = opts;
 	}
 
 	/* Build the whole command. */
-	cmd = xs_buffer("ind\\e005Bfile %s %s%s\\n",
-	    receive_flag ? "get" : "put", ft_host_filename, op);
+	cmd = xs_buffer("IND\\e005BFILE %s %s%s\\n",
+	    receive_flag ? "GET" : "PUT", ft_host_filename, op);
 
 	/* Erase the line and enter the command. */
 	flen = kybd_prime();
@@ -1977,10 +2138,12 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 	(void) emulate_input(cmd, strlen(cmd), False);
 	Free(cmd);
 #if defined(C3270) /*[*/
-	if (!escaped)
-	    	screen_suspend();
-	printf("Awaiting start of transfer... ");
-	fflush(stdout);
+	if (ft_is_interactive) {
+		printf("Awaiting start of transfer... ");
+		fflush(stdout);
+	} else {
+		popup_an_info("Awaiting start of transfer... ");
+	}
 #endif /*]*/
 
 	/* Get this thing started. */
@@ -1988,5 +2151,54 @@ Transfer_action(Widget w _is_unused, XEvent *event, String *params,
 	ft_state = FT_AWAIT_ACK;
 	ft_is_cut = False;
 }
+
+# if defined(_WIN32) /*[*/
+/*
+ * Windows character translation functions.
+ *
+ * These are wrappers around the existing functions in unicode.c, but they swap
+ * the local codepage in and out to use the one specified for the transfer.
+ *
+ * On other platforms, these functions are #defined to their 'real'
+ * counterparts.
+ */
+int
+ft_ebcdic_to_multibyte(ebc_t ebc, char mb[], int mb_len)
+{
+	int local_cp = appres.local_cp;
+	int rc;
+
+	appres.local_cp = ft_windows_codepage;
+	rc = ebcdic_to_multibyte(ebc, mb, mb_len);
+	appres.local_cp = local_cp;
+	return rc;
+}
+
+int
+ft_unicode_to_multibyte(ucs4_t ucs4, char *mb, size_t mb_len)
+{
+	int local_cp = appres.local_cp;
+	int rc;
+
+	appres.local_cp = ft_windows_codepage;
+	rc = unicode_to_multibyte(ucs4, mb, mb_len);
+	appres.local_cp = local_cp;
+	return rc;
+}
+
+ucs4_t
+ft_multibyte_to_unicode(const char *mb, size_t mb_len, int *consumedp,
+	enum me_fail *errorp)
+{
+	int local_cp = appres.local_cp;
+	ucs4_t rc;
+
+	appres.local_cp = ft_windows_codepage;
+	rc = multibyte_to_unicode(mb, mb_len, consumedp, errorp);
+	appres.local_cp = local_cp;
+	return rc;
+}
+
+# endif /*]*/
 
 #endif /*]*/

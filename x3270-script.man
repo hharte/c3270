@@ -1,56 +1,74 @@
 '\" t
-.TH X3270-SCRIPT 1 "02 May 2013"
+.TH X3270-SCRIPT 1 "24 December 2014"
 .SH "NAME"
-Scripting Facilities for x3270, s3270, ws3270 and c3270
+Scripting Facilities for
+x3270,
+c3270 and s3270
 .SH "SYNOPSIS"
 \fBx3270\fP \fB\-script\fP [ \fIx3270-options\fP ]
 .br
-\fBs3270\fP [ \fIs3270-options\fP ]
+\fBx3270\fP \fB\-socket\fP [ \fIx3270-options\fP ]
 .br
-\fBws3270\fP [ \fIws3270-options\fP ]
+\fBx3270\fP \fB\-scriptport \fIport\fP\fP [ \fIx3270-options\fP ]
+.br
+\fBc3270\fP \fB\-socket\fP [ \fIc3270-options\fP ]
+.br
+\fBc3270\fP \fB\-scriptport\fP \fIport\fP [ \fIs3270-options\fP ]
+.br
+\fBs3270\fP [ \fIs3270-options\fP ]
 .br
 \fBScript\fP ( \fIcommand\fP [ ,\fIarg\fP... ] )
 .SH "DESCRIPTION"
-The \fBx3270\fP scripting facilities allow the interactive 3270 emulators
-\fBx3270\fP and \fBc3270\fP to be operated under the control of another
-program, and form the basis for the script-only emulators \fBs3270\fP
-and \fBws3270\fP.
+The \fBx3270\fP scripting facilities allow the interactive 3270
+emulators \fBx3270\fP and \fBc3270\fP
+to be operated under the control of another
+program, and forms the basis for the script-only emulator \fBs3270\fP.
 .PP
-There are two basic scripting methods.
-The first is the \fBpeer script\fP facility, invoked by the \fBx3270\fP
-\fB\-script\fP switch, and the default mode for \fBs3270\fP and
-\fBws3270\fP.
-This runs \fBx3270\fP, \fBs3270\fP or \fBws3270\fP as a child of another
-process.
+There are
+four
+basic scripting methods.
+The first is the \fBpeer script\fP facility,
+invoked by the \fBx3270\fP
+\fB\-script\fP switch, and the default mode for \fBs3270\fP.
+This runs the emulator as a child of another process.
 Typically this would be a script using
 \fIexpect\fP(1), \fIperl\fP(1),
 or the co-process facility of the Korn Shell
 \fIksh\fP(1).
-Inthis mode, the emulator process looks for commands on its standard input,
+In this mode, the emulator process looks for commands on its standard input,
 and places the responses on standard output.
 .PP
 The second method is the \fBchild script\fP
-facility, invoked by the \fBScript\fP action in \fBx3270\fP, \fBc3270\fP,
-or \fBs3270\fP.
+facility, invoked by the emulator's \fBScript\fP action.
 This runs a script as a child process of the emulator.
-The child has access to pipes connected to the emulator; the emulator
-look for commands on one pipe, and places the responses on the other.
-(The file descriptor of the pipe for commands to the emulator
-is passed in the environment variable X3270INPUT; the file descriptor
+The child has access to pipes connected to the
+emulator; the emulator looks for commands on one pipe, and places the responses on the other.
+The file descriptor of the pipe for commands to the emulator
+is passed in the environment variable X3270INPUT (e.g., the text string "7" if
+the file descriptor is 7); the file descriptor
 of the pipe for responses from the emulator is passed in the environment
-variable X3270OUTPUT.)
+variable X3270OUTPUT.
 .PP
-It is possible to mix the two methods.
-A script can invoke another script with the \fBScript\fP action, and
-may also be implicitly nested when a script invokes the
-\fBConnect\fP
-action, and the
-\fBibm_hosts\fP
-file specifies a login script for that host name.
+The third method uses a TCP socket.
+The \fB\-scrpiptport\fP command-line option causes the emulator to
+bind a socket to the specified port (on the IPv4 loopback address, 127.0.0.1).
+The emulator accepts TCP connections on that port.
+Multiple commands and responses can be sent over each connection.
+.PP
+The fourth method uses a Unix-domain socket.
+The \fB\-socket\fP command-line option causes the emulator to
+create a Unix-domain stream socket named \fB/tmp/x3sck.\fP\fIpid\fP.
+The emulator accepts connections to that socket.
+Multiple commands and responses can be sent over each connection.
+.PP
+It is possible to nest the methods.
+For example, a peer or TCP socket script can invoke the \fBScript\fP action.
+The calling script will be resumed when the nested script completes.
 .PP
 Commands are emulator \fIactions\fP; the syntax is the same as for the
-right-hand side of an Xt translation table entry (an \fBx3270\fP or
-\fBc3270\fP keymap).
+right-hand side of
+an \fBx3270\fP or
+\fBc3270\fP keymap.
 Unlike translation tables, action names are case-insensitive, can be
 uniquely abbreviated, and the parentheses may be omitted if there are
 no parameters.
@@ -134,7 +152,7 @@ The X window identifier for the main
 window, in hexadecimal preceded by
 \fB0x\fP.
 For
-\fBs3270\fP, \fBws3270\fP and \fBc3270\fP,
+\fBs3270\fP and \fBc3270\fP,
 this is zero.
 .TP
 12 Command Execution Time
@@ -182,12 +200,37 @@ unlocks the keyboard, regardless of the state of the \fBAidWait\fP toggle.
 .PP
 Note that the
 \fBScript\fP
-action does not complete until end-of-file is
-detected on the pipe or the
-\fBCloseScript\fP
-action is called by the child
-process.
+action does not complete until
+end-of-file is detected on the pipe or the \fBCloseScript\fP action is called by the child process.
 This behavior is not affected by the state of the \fBAidWait\fP toggle.
+.SH "BASIC PROGRAMMING STRATEGIES"
+3270 session scripting can be more difficult than other kinds of scripting,
+because it can be hard to tell when the host is finished processing a
+command.
+There is a well-defined 3270 Data Stream facility for doing this: The emulator
+locks the keyboard when it sends the host an AID, and the later host unlocks
+the keyboard.
+The emulator supports this facility directly by not allowing an AID action
+to complete until the keyboard is unlocked.
+Unfortunately, some hosts and some host applications unlock the keyboard as
+soon as they begin processing the command, instead of after it is finished.
+A human operator can see on the screen when the command is finished (e.g.,
+when a READY prompt is displayed), but it can be difficult for a script to
+do this. For such early-unlock hosts, the only option in a script is to poll the
+screen until it can determine that the command is complete.
+.LP
+Another complication is that host I/O and script operation are asynchronous.
+That is, the host can update the screen at any time, even between actions that
+are reading the screen contents, so a script can get inconsistent results.
+Assistance for this problem is provided by the \fBSnap\fP action.
+The \fBSnap(Save)\fP action saves a snapshot of the screen in a special
+buffer. Then the script can use \fBSnap\fP variants of the \fBAscii\fP and
+\fBEbcdic\fP actions (\fBSnap(Ascii)\fP and \fBSnap(Ebcdic)\fP) to query
+the saved buffer -- which the host cannot modify -- to get the data it wants.
+Finally, \fB\fBSnap(Wait Output)\fP\fP blocks the script until the host
+modifies the screen, specifically since the last call to \fBSnap(Save)\fP.
+Thus a script can poll the screen efficiently by writing a loop that begins
+with \fBSnap(Save)\fP and ends with \fBSnap(Wait Output)\fP.
 .SH "SCRIPT-SPECIFIC ACTIONS"
 The following actions have been defined or modified for use with scripts.
 (Note that unlike the display on the status line,
@@ -341,13 +384,146 @@ Outputs the single parameter to
 Pipes an ASCII representation of the current screen image through the named
 \fIfilter\fP, e.g., \fBlpr\fP.
 .TP
-\fBPrintText\fP([\fBhtml\fP,],\fBfile\fP,\fIfilename\fP))
+\fBPrintText\fP([\fBhtml\fP,][\fBappend\fP,][\fBreplace\fP,]\fBfile\fP,\fIfilename\fP))
 Saves the current screen contents in a file.
 With the \fBhtml\fP option, saves it as HTML, otherwise saves it as plain
 ASCII.
+The \fBappend\fP option (the default) causes the data to be appended to the
+file if it already exists. The \fBreplace\fP option causes the file to be
+overwritten instead.
 .TP
 \fBPrintText\fP(\fBhtml,string\fP)
 Returns the current screen contents as HTML.
+.TP
+\fBQuery\fP(\fIkeyword\fP)
+Returns state information.
+Keywords are:
+.PP
+.TS
+center;
+l l .
+T{
+.na
+.nh
+Keyword
+T}	T{
+.na
+.nh
+Output
+T}
+_
+T{
+.na
+.nh
+BindPluName
+T}	T{
+.na
+.nh
+BIND PLU returned by the host
+T}
+T{
+.na
+.nh
+ConnectionState
+T}	T{
+.na
+.nh
+TN3270/TN3270E mode and submode
+T}
+T{
+.na
+.nh
+CodePage
+T}	T{
+.na
+.nh
+Host code page
+T}
+T{
+.na
+.nh
+Cursor
+T}	T{
+.na
+.nh
+Cursor position (row col)
+T}
+T{
+.na
+.nh
+Formatted
+T}	T{
+.na
+.nh
+3270 format state (formatted or unformatted)
+T}
+T{
+.na
+.nh
+Host
+T}	T{
+.na
+.nh
+Host name and port
+T}
+T{
+.na
+.nh
+LocalEncoding
+T}	T{
+.na
+.nh
+Local character encoding
+T}
+T{
+.na
+.nh
+LuName
+T}	T{
+.na
+.nh
+Host name LU name
+T}
+T{
+.na
+.nh
+Model
+T}	T{
+.na
+.nh
+3270 model name (IBM-327x-n)
+T}
+T{
+.na
+.nh
+ScreenCurSize
+T}	T{
+.na
+.nh
+Current screen size (rows cols)
+T}
+T{
+.na
+.nh
+ScreenMaxSize
+T}	T{
+.na
+.nh
+Maximum screen size (rows cols)
+T}
+T{
+.na
+.nh
+Ssl
+T}	T{
+.na
+.nh
+SSL state (secure or not-secure) and host validation state (host-verified or host-unverified)
+T}
+.TE
+.IP
+Without a \fIkeyword\fP, \fBQuery\fP returns each of the defined attributes,
+one per line, labeled by its name.
 .TP
 \fBReadBuffer\fP(\fBAscii\fP)
 Dumps the contents of the screen buffer, one line at a time.
@@ -647,10 +823,16 @@ In addition, NULL characters in the screen buffer are reported as ASCII
 character 00 instead of 20, even though they should be displayed as blanks.
 .TP
 \fBReadBuffer\fP(\fBEbcdic\fP)
-Equivalent to \fBSnap\fP(\fBAscii\fP), but with the data fields output as
+Equivalent to \fBReadBuffer\fP(\fBAscii\fP), but with the data fields output as
 hexadecimal EBCDIC codes instead.
 Additionally, if a buffer position has the Graphic Escape attribute, it is
 displayed as \fBGE(\fIxx\fP)\fP.
+.TP
+\fBScript\fP(\fIpath\fP[,arg...])
+Runs a child script, passing it optional command-line arguments.
+\fIpath\fP must specify an executable (binary) program: the emulator will
+create a new process and execute it. If you simply want the emulator to read
+commands from a file, use the \fBSource\fP action.
 .TP
 \fBSnap\fP
 Equivalent to \fBSnap\fP(\fBSave\fP) (see below).
@@ -667,7 +849,7 @@ Performs the \fBEbcdic\fP action on the saved screen image.
 \fBSnap\fP(\fBReadBuffer\fP)
 Performs the \fBReadBuffer\fP action on the saved screen image.
 .TP
-\fBSnap\fP(\fBRows\fP)
+\fBSnap(\fBRows\fP)\fP
 Returns the number of rows in the saved screen image.
 .TP
 \fBSnap\fP(\fBSave\fP)
@@ -707,7 +889,9 @@ If any of the commands fails, the \fBSource\fP command will \fInot\fP abort;
 it will continue reading commands until EOF.
 .TP
 \fBTitle\fP(\fItext\fP)
-Changes the x3270 window title to \fItext\fP.
+Changes the
+x3270
+window title to \fItext\fP.
 .TP
 \fBTransfer\fP(\fIkeyword\fP=\fIvalue\fP,...)
 Invokes IND$FILE file transfer.
@@ -912,7 +1096,7 @@ tso
 T}	T{
 .na
 .nh
-vm
+vm, cics
 T}
 T{
 .na
@@ -1117,7 +1301,7 @@ The name of the file on the local workstation.
 .TP
 \fBHost\fP
 The type of host (which dictates the form of the \fBIND$FILE\fP command):
-\fBtso\fP (the default) or \fBvm\fP.
+\fBtso\fP (the default), \fBvm\fP or \fBcics\fP.
 .TP
 \fBMode\fP
 Use \fBascii\fP (the default) for a text file, which will be translated
@@ -1136,10 +1320,10 @@ to the host.
 .TP
 \fBRemap\fP
 Controls text translation for \fBMode=ascii\fP files.
-The value \fByes\fP (the default) causes x3270-script to remap the text to ensure
+The value \fByes\fP (the default) causes c3270 to remap the text to ensure
 maximum compatibility between the workstation's character set and encoding
 and the host's EBCDIC code page.
-The value \fBno\fP causes x3270-script to pass the text to or from the host
+The value \fBno\fP causes c3270 to pass the text to or from the host
 as-is, leaving all translation to the \fBIND$FILE\fP program on the host.
 .TP
 \fBExist\fP
@@ -1151,31 +1335,35 @@ Controls what happens when the destination file already exists.
 .TP
 \fBRecfm\fP
 Controls the record format of files created on the host.
+(\s-1TSO\s+1 and \s-1VM\s+1 hosts only.)
 \fBfixed\fP creates a file with fixed-length records.
 \fBvariable\fP creates a file with variable-length records.
-\fBundefined\fP creates a file with undefined-length records (\s-1TSO\s+1 hosts only).
+\fBundefined\fP creates a file with undefined-length records (\s-1TSO\s+1 hosts
+only).
 The \fBLrecl\fP option controls the record length or maximum record length for
 \fBRecfm=fixed\fP and \fBRecfm=variable\fP files, respectively.
 .TP
 \fBLrecl\fP
 Specifies the record length (or maximum record length) for files created on
 the host.
+(\s-1TSO\s+1 and \s-1VM\s+1 hosts only.)
 .TP
 \fBBlksize\fP
-Specifies the block size for files created on the host.  (\s-1TSO\s+1 hosts only.)
+Specifies the block size for files created on the host.
+(\s-1TSO\s+1 and \s-1VM\s+1 hosts only.)
 .TP
 \fBAllocation\fP
-Specifies the units for the \s-1TSO\s+1 host \fBPrimarySpace\fP and
+Specifies the units for the \fBPrimarySpace\fP and
 \fBSecondarySpace\fP options: \fBtracks\fP, \fBcylinders\fP or
-\fBavblock\fP.
+\fBavblock\fP. (\s-1TSO\s+1 hosts only.)
 .TP
 \fBPrimarySpace\fP
-Primary allocation for a file created on a \s-1TSO\s+1 host.
-The units are given by the \fBAllocation\fP option.
+Primary allocation for a file,
+The units are given by the \fBAllocation\fP option. (\s-1TSO\s+1 hosts only.)
 .TP
 \fBSecondarySpace\fP
-Secondary allocation for a file created on a \s-1TSO\s+1 host.
-The units are given by the \fBAllocation\fP option.
+Secondary allocation for a file.
+The units are given by the \fBAllocation\fP option. (\s-1TSO\s+1 hosts only.) 
 .TP
 \fBBufferSize\fP
 Buffer size for DFT-mode transfers.
@@ -1185,14 +1373,16 @@ support them.
 .SH "SEE ALSO"
 expect(1)
 .br
+perl(1)
+.br
 ksh(1)
 .br
 x3270(1)
 .br
+x3270if(1)
+.br
 c3270(1)
 .br
 s3270(1)
-.br
-ws3270(1)
 .SH "VERSION"
-Version 3.3.12ga13
+Version 3.3.15ga8

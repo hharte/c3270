@@ -1,14 +1,16 @@
 '\" t
-.TH X3270IF 1 "02 May 2013"
+.TH X3270IF 1 "24 December 2014"
 .SH "NAME"
-x3270if \- command interface to x3270, c3270 and s3270
+x3270if \- command interface to
+x3270, c3270 and s3270
 .SH "SYNOPSIS"
 \fBx3270if\fP [option]... [ \fIaction\fP ]
 .br
 \fBx3270if \-i\fP
 .SH "DESCRIPTION"
 \fBx3270if\fP provides an interface between scripts and
-the 3270 emulators \fIx3270\fP, \fIc3270\fP, and \fIs3270\fP.
+the 3270 emulators
+\fIx3270\fP, \fIc3270\fP and \fIs3270\fP.
 .LP
 \fBx3270if\fP operates in one of two modes.
 In \fBaction mode\fP, it passes a single action and parameters to the
@@ -106,20 +108,20 @@ Output from the emulator, input to the child process.
 \fBX3270INPUT\fP
 Input to the emulator, output from the child process.
 .LP
-On Windows, or when a Unix emulator is started with the
-\fB\-scriptport\fP option, the emulator will pass the port number
+When an emulator is started with the
+\fB\-scriptport\fP option, the 
+emulator will pass the scriptport port number
 encoded as text in the \fBX3270PORT\fP environment variable.
 \fIx3270if\fP will use that value as if it had been passed to it via the
 \fB\-t\fP option.
-\fBX3270PORT\fP takes precedence over \fBX3270OUTPUT\fP and
-\fBX3270INPUT\fP.
+\fBX3270PORT\fP takes precedence over
+\fBX3270OUTPUT\fP and \fBX3270INPUT\fP.
 .SH "SEE ALSO"
-x3270(1),
-c3270(1),
+x3270(1), c3270(1),
 s3270(1),
 x3270-script(1)
 .SH "COPYRIGHT"
-Copyright 1999-2009, Paul Mattes.
+Copyright 1999-2009, 2013 Paul Mattes.
 .br
 All rights reserved.
 .LP

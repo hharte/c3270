@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2012, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -75,32 +75,20 @@ struct host *hosts = (struct host *)NULL;
 static struct host *last_host = (struct host *)NULL;
 static Boolean auto_reconnect_inprogress = False;
 static int net_sock = -1;
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
-static unsigned long reconnect_id = 0;
+#if defined(X3270_INTERACTIVE) /*[*/
+static ioid_t reconnect_id = NULL_IOID;
 #endif /*]*/
 
 #if defined(X3270_DISPLAY) /*[*/
 static void save_recent(const char *);
 #endif /*]*/
 
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
-static void try_reconnect(void);
+#if defined(X3270_INTERACTIVE) /*[*/
+static void try_reconnect(ioid_t id);
 #endif /*]*/
 
-/*
- * Much like strtok, but allows '>' hierarchies.
- * The command string cannot include the '>' character; this is a weakness of
- * the syntax definition and is the cost of allowing spaces in hierarchy names.
- * 
- * A better syntax would be blocks of keyword=value pairs, like:
- *     name=[hier>...]name
- *     type=primary|alias
- *     command=foo
- *
- * Sometime I could do this.
- */
 static char *
-stoken(char **s, Boolean hier)
+stoken(char **s)
 {
 	char *r;
 	char *ss = *s;
@@ -108,13 +96,6 @@ stoken(char **s, Boolean hier)
 	if (!*ss)
 		return NULL;
 	r = ss;
-	if (hier) {
-		char *gt = strrchr(ss, '>');
-
-		if (gt != NULL) {
-			ss = gt + 1;
-		}
-	}
 	while (*ss && *ss != ' ' && *ss != '\t')
 		ss++;
 	if (*ss) {
@@ -138,7 +119,6 @@ hostfile_init(void)
 	static Boolean hostfile_initted = False;
 	struct host *h;
 	char *hostfile_name;
-	int lno = 0;
 
 	if (hostfile_initted)
 		return;
@@ -148,7 +128,7 @@ hostfile_init(void)
 	if (hostfile_name == CN)
 		hostfile_name = xs_buffer("%s/ibm_hosts", appres.conf_dir);
 	else
-		hostfile_name = do_subst(appres.hostsfile, True, True);
+		hostfile_name = do_subst(appres.hostsfile, DS_VARS | DS_TILDE);
 	hf = fopen(hostfile_name, "r");
 	if (hf != (FILE *)NULL) {
 		while (fgets(buf, sizeof(buf), hf)) {
@@ -156,7 +136,6 @@ hostfile_init(void)
 			char *name, *entry_type, *hostname;
 			char *slash;
 
-			lno++;
 			if (strlen(buf) > (unsigned)1 &&
 			    buf[strlen(buf) - 1] == '\n') {
 				buf[strlen(buf) - 1] = '\0';
@@ -165,12 +144,12 @@ hostfile_init(void)
 				s++;
 			if (!*s || *s == '#')
 				continue;
-			name = stoken(&s, True);
-			entry_type = stoken(&s, False);
-			hostname = stoken(&s, False);
+			name = stoken(&s);
+			entry_type = stoken(&s);
+			hostname = stoken(&s);
 			if (!name || !entry_type || !hostname) {
-				popup_an_error("Bad %s syntax, entry %d "
-					"skipped", ResHostsFile, lno);
+				popup_an_error("Bad %s syntax, entry skipped",
+				    ResHostsFile);
 				continue;
 			}
 			h = (struct host *)Malloc(sizeof(*h));
@@ -188,17 +167,10 @@ hostfile_init(void)
 			if ((slash = strchr(h->hostname, '/')))
 				*slash = ':';
 
-			if (!strcasecmp(entry_type, "primary"))
+			if (!strcmp(entry_type, "primary"))
 				h->entry_type = PRIMARY;
-			else if (!strcasecmp(entry_type, "alias"))
+			else
 				h->entry_type = ALIAS;
-			else {
-				popup_an_error("Bad %s syntax, entry %d "
-					"skipped", ResHostsFile, lno);
-				Free(h->hostname);
-				Free(h);
-				continue;
-			}
 			if (*s)
 				h->loginstring = NewString(s);
 			else
@@ -681,7 +653,7 @@ host_connect(const char *n)
 	net_sock = net_connect(chost, port, localprocess_cmd != CN, &resolving,
 	    &pending);
 	if (net_sock < 0 && !resolving) {
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 # if defined(X3270_DISPLAY) /*[*/
 		if (appres.once) {
 			/* Exit when the error pop-up pops down. */
@@ -733,7 +705,7 @@ host_connect(const char *n)
 	return 0;
 }
 
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 /*
  * Reconnect to the last host.
  */
@@ -751,7 +723,7 @@ host_reconnect(void)
  * Called from timer to attempt an automatic reconnection.
  */
 static void
-try_reconnect(void)
+try_reconnect(ioid_t id _is_unused)
 {
 	auto_reconnect_inprogress = False;
 	host_reconnect();
@@ -777,7 +749,7 @@ host_disconnect(Boolean failed)
 		x_remove_input();
 		net_disconnect();
 		net_sock = -1;
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 # if defined(X3270_DISPLAY) /*[*/
 		if (appres.once) {
 			if (error_popup_visible()) {
@@ -955,7 +927,8 @@ save_recent(const char *hn)
 	 */
 	if (appres.connectfile_name != CN &&
 	    strcasecmp(appres.connectfile_name, "none")) {
-		lcf_name = do_subst(appres.connectfile_name, True, True);
+		lcf_name = do_subst(appres.connectfile_name,
+			DS_VARS | DS_TILDE);
 		lcf = fopen(lcf_name, "r");
 	}
 	if (lcf != (FILE *)NULL) {

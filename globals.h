@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2012, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * Copyright (c) 2005, Don Russell.
  * Copyright (c) 1990, Jeff Sparkes.
  * All rights reserved.
@@ -53,11 +53,11 @@
  *   Use only blocking sockets.
  */
 #if defined(sco) /*[*/
-#define BLOCKING_CONNECT_ONLY	1
+# define BLOCKING_CONNECT_ONLY	1
 #endif /*]*/
 
 #if defined(apollo) /*[*/
-#define BLOCKING_CONNECT_ONLY	1
+# define BLOCKING_CONNECT_ONLY	1
 #endif /*]*/
 
 /*
@@ -66,14 +66,14 @@
 
 /* '_is_unused' explicitly flags an unused parameter */
 #if defined(__GNUC__) /*[*/
-#define _is_unused __attribute__((__unused__))
-#define printflike(s,f) __attribute__ ((__format__ (__printf__, s, f)))
+# define _is_unused __attribute__((__unused__))
+# define printflike(s,f) __attribute__ ((__format__ (__printf__, s, f)))
 #else /*][*/
-#define _is_unused /* nothing */
-#define printflike(s, f) /* nothing */
+# define _is_unused /* nothing */
+# define printflike(s, f) /* nothing */
 #endif /*]*/
 #if 'A' > 'a' /*[*/
-#define EBCDIC_HOST 1
+# define EBCDIC_HOST 1
 #endif /*]*/
 
 /*
@@ -82,27 +82,19 @@
 #include <stdio.h>			/* Unix standard I/O library */
 #include <stdlib.h>			/* Other Unix library functions */
 #if !defined(_MSC_VER) /*[*/
-#include <unistd.h>			/* Unix system calls */
+# include <unistd.h>			/* Unix system calls */
 #endif /*]*/
 #include <ctype.h>			/* Character classes */
 #include <string.h>			/* String manipulations */
 #include <sys/types.h>			/* Basic system data types */
 #if !defined(_MSC_VER) /*[*/
-#include <sys/time.h>			/* System time-related data types */
+# include <sys/time.h>			/* System time-related data types */
 #endif /*]*/
 #include <time.h>			/* C library time functions */
-#include "localdefs.h"			/* {s,tcl,c}3270-specific defines */
-
-/*
- * MSC glue.
- */
-#if defined(_MSC_VER) /*[*/
-#include <winsock2.h>			/* for struct timeval */
-extern int gettimeofday(struct timeval *, void *);
-#define R_OK	4
-#define strcasecmp      _stricmp
-#define strncasecmp     _strnicmp
+#if defined(_WIN32) /*[*/
+# include "wincmn.h"			/* Common Windows definitions */
 #endif /*]*/
+#include "localdefs.h"			/* {s,tcl,c}3270-specific defines */
 
 /*
  * Locale-related definitions.
@@ -110,12 +102,12 @@ extern int gettimeofday(struct timeval *, void *);
  * development of iconv-based logic can be done on 10646-compliant systems.
  */
 #if defined(__STDC_ISO_10646__) && !defined(USE_ICONV) /*[*/
-#define UNICODE_WCHAR	1
+# define UNICODE_WCHAR	1
 #endif /*]*/
 #if !defined(_WIN32) && !defined(UNICODE_WCHAR) /*[*/
-#undef USE_ICONV
-#define USE_ICONV 1
-#include <iconv.h>
+# undef USE_ICONV
+# define USE_ICONV 1
+# include <iconv.h>
 #endif /*]*/
 
 /*
@@ -129,26 +121,30 @@ typedef unsigned short ebc_t;
  * Cancel out contradictory parts.
  */
 #if !defined(X3270_DISPLAY) /*[*/
-#undef X3270_KEYPAD
-#undef X3270_MENUS
+# undef X3270_KEYPAD
 #endif /*]*/
-#if defined(C3270) && defined(X3270_DBCS) && !defined(CURSES_WIDE) /*[*/
-#undef X3270_DBCS
+#if defined(C3270) && defined(X3270_DBCS) && !defined(CURSES_WIDE) && !defined(_WIN32) /*[*/
+# undef X3270_DBCS
+#endif /*]*/
+
+/* Derived #defines. */
+#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+# define X3270_INTERACTIVE	1
 #endif /*]*/
 
 /* Local process (-e) header files. */
 #if defined(X3270_LOCAL_PROCESS) && defined(HAVE_FORKPTY) /*[*/
-#define LOCAL_PROCESS	1
-#include <termios.h>
-#if defined(HAVE_PTY_H) /*[*/
-#include <pty.h>
-#endif /*]*/
-#if defined(HAVE_LIBUTIL_H) /*[*/
-#include <libutil.h>
-#endif /*]*/
-#if defined(HAVE_UTIL_H) /*[*/
-#include <util.h>
-#endif /*]*/
+# define LOCAL_PROCESS	1
+# include <termios.h>
+# if defined(HAVE_PTY_H) /*[*/
+#  include <pty.h>
+# endif /*]*/
+# if defined(HAVE_LIBUTIL_H) /*[*/
+#  include <libutil.h>
+# endif /*]*/
+# if defined(HAVE_UTIL_H) /*[*/
+#  include <util.h>
+# endif /*]*/
 #endif /*]*/
 
 /* Functions we may need to supply. */
@@ -169,9 +165,15 @@ extern int		defROWS;	/* default (EraseWrite) */
 extern int		defCOLS;
 extern int		altROWS;	/* alternate (EraseWriteAlternate) */
 extern int		altCOLS;
+#if defined(C3270) /*[*/
+extern Boolean		any_error_output;
+#endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
 extern Atom		a_3270, a_registry, a_encoding;
 extern XtAppContext	appcontext;
+#endif /*]*/
+#if defined(USE_APP_DEFAULTS) /*[*/
+extern const char	*app_defaults_version;
 #endif /*]*/
 extern const char	*build;
 extern const char	*build_rpq_timestamp;
@@ -183,6 +185,9 @@ extern char		*current_host;
 extern unsigned short	current_port;
 #if defined(X3270_DBCS) /*[*/
 extern Boolean		dbcs;
+#endif /*]*/
+#if defined(X3270_DISPLAY) /*[*/
+extern int		default_screen;
 #endif /*]*/
 #if defined(X3270_FT) /*[*/
 extern int		dft_buffersize;
@@ -220,6 +225,7 @@ extern Boolean		non_tn3270e_host;
 extern int		ov_cols, ov_rows;
 extern Boolean		ov_auto;
 extern Boolean		passthru_host;
+extern char		*profile_name;
 extern const char	*programname;
 extern char		*qualified_host;
 extern char		*reconnect_host;
@@ -254,10 +260,13 @@ extern char		*user_title;
 #if defined(_WIN32) && (defined(C3270) || defined(S3270)) /*[*/
 extern char		*instdir;
 extern char		*myappdata;
+extern char		*commonappdata;
+extern char		*mydesktop;
 #endif /*]*/
 
-#if defined(_WIN32) && defined(C3270) /*[*/
+#if defined(WC3270) /*[*/
 extern int		is_installed;
+extern HWND		console_window;
 #endif /*]*/
 
 /* Data types and complex global variables */
@@ -271,7 +280,7 @@ enum cstate {
 	CONNECTED_INITIAL,	/* connected, no 3270 mode yet */
 	CONNECTED_ANSI,		/* connected in NVT ANSI mode */
 	CONNECTED_3270,		/* connected in old-style 3270 mode */
-	CONNECTED_INITIAL_E,	/* connected in TN3270E mode, unnegotiated */
+	CONNECTED_UNBOUND,	/* connected in TN3270E mode, unbound */
 	CONNECTED_NVT,		/* connected in TN3270E mode, NVT mode */
 	CONNECTED_SSCP,		/* connected in TN3270E mode, SSCP-LU mode */
 	CONNECTED_TN3270E	/* connected in TN3270E mode, 3270 mode */
@@ -281,12 +290,12 @@ extern enum cstate cstate;
 #define PCONNECTED	((int)cstate >= (int)RESOLVING)
 #define HALF_CONNECTED	(cstate == RESOLVING || cstate == PENDING)
 #define CONNECTED	((int)cstate >= (int)CONNECTED_INITIAL)
-#define IN_NEITHER	(cstate == CONNECTED_INITIAL)
+#define IN_NEITHER	(cstate == NEGOTIATING || cstate == CONNECTED_INITIAL)
 #define IN_ANSI		(cstate == CONNECTED_ANSI || cstate == CONNECTED_NVT)
 #define IN_3270		(cstate == CONNECTED_3270 || cstate == CONNECTED_TN3270E || cstate == CONNECTED_SSCP)
 #define IN_SSCP		(cstate == CONNECTED_SSCP)
 #define IN_TN3270E	(cstate == CONNECTED_TN3270E)
-#define IN_E		(cstate >= CONNECTED_INITIAL_E)
+#define IN_E		(cstate >= CONNECTED_UNBOUND)
 
 /*   keyboard modifer bitmap */
 #define ShiftKeyDown	0x01
@@ -297,6 +306,7 @@ extern enum cstate cstate;
 struct toggle_name {
 	const char *name;
 	int index;
+	Boolean is_alias;
 };
 extern struct toggle_name toggle_names[];
 
@@ -355,7 +365,7 @@ enum keytype { KT_STD, KT_GE };
 
 #define CN	((char *) NULL)
 #define PN	((XtPointer) NULL)
-#define Replace(var, value) { Free(var); var = (value); }
+#define Replace(var, value) do { Free(var); var = (value); } while(False)
 
 /* Configuration change masks. */
 #define NO_CHANGE	0x0000	/* no change */
@@ -371,27 +381,46 @@ enum keytype { KT_STD, KT_GE };
 /*   Equivalent of setlinebuf */
 
 #if defined(_IOLBF) /*[*/
-#define SETLINEBUF(s)	setvbuf(s, (char *)NULL, _IOLBF, BUFSIZ)
+# define SETLINEBUF(s)	setvbuf(s, (char *)NULL, _IOLBF, BUFSIZ)
 #else /*][*/
-#define SETLINEBUF(s)	setlinebuf(s)
+# define SETLINEBUF(s)	setlinebuf(s)
 #endif /*]*/
 
 /*   Motorola version of gettimeofday */
 
 #if defined(MOTOROLA)
-#define gettimeofday(tp,tz)	gettimeofday(tp)
+# define gettimeofday(tp,tz)	gettimeofday(tp)
 #endif
 
 /* Default DFT file transfer buffer size. */
 #if defined(X3270_FT) && !defined(DFT_BUF) /*[*/
-#define DFT_BUF		(4 * 1024)
+# define DFT_BUF		(4 * 1024)
 #endif /*]*/
 
 /* DBCS Preedit Types */
 #if defined(X3270_DBCS) /*[*/
-#define PT_ROOT			"Root"
-#define PT_OVER_THE_SPOT	"OverTheSpot"
-#define PT_OFF_THE_SPOT		"OffTheSpot"
-#define PT_ON_THE_SPOT		"OnTheSpot"
+# define PT_ROOT		"Root"
+# define PT_OVER_THE_SPOT	"OverTheSpot"
+# define PT_OFF_THE_SPOT	"OffTheSpot"
+# define PT_ON_THE_SPOT		"OnTheSpot"
 #endif /*]*/
 
+/* I/O ID typedef */
+typedef unsigned long ioid_t;
+
+/* Screen print types. */
+typedef enum { P_TEXT, P_HTML, P_RTF, P_GDI } ptype_t;
+
+/* Usage message with error exit. */
+extern void usage(const char *);
+
+/* Xt options. */
+#if defined(X3270_DISPLAY) /*[*/
+extern XrmOptionDescRec options[];
+extern int num_options;
+#endif /*]*/
+
+#if defined(C3270) /*[*/
+/* c3270 profile merge. */
+extern Boolean merge_profile(void);
+#endif /*]*/

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2014, Paul Mattes.
+ * Copyright (c) 1994-2014, Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,63 +26,27 @@
  */
 
 /*
- *	conf.h
- *              System-specific #defines for libraries and library functions.
- *		Automatically generated from conf.h.in by configure.
+ *	fprint_screenc.h
+ *		Screen printing functions.
  */
 
+#define FPS_EVEN_IF_EMPTY	0x1	/* print even if screen is blank */
+#define FPS_MODIFIED_ITALIC	0x2	/* print modified fields in italic */
+#define FPS_FF_SEP		0x4	/* use FFs to divide pages in text */
 
-/* Libraries. */
-#undef HAVE_LIBNCURSESW
-#undef HAVE_LIBNCURSES
-#undef HAVE_LIBCURSES
-#undef HAVE_LIBREADLINE
-#undef HAVE_LIBSSL
+typedef struct _fps *fps_t;
 
-/* Header files. */
-#undef HAVE_NCURSESW_NCURSES_H
-#undef HAVE_NCURSES_NCURSES_H
-#undef HAVE_NCURSES_H
-#undef HAVE_CURSES_H
-#undef HAVE_NCURSESW_TERM_H
-#undef HAVE_NCURSES_TERM_H
-#undef HAVE_TERM_H
-#undef HAVE_SYS_SELECT_H
-#undef HAVE_READLINE_HISTORY_H
-#undef HAVE_PTY_H
-#undef HAVE_LIBUTIL_H
-#undef HAVE_UTIL_H
-#undef HAVE_GETOPT_H
+typedef enum {
+	FPS_STATUS_SUCCESS = 0,
+	FPS_STATUS_SUCCESS_WRITTEN = 1,
+	FPS_STATUS_ERROR = -1,
+	FPS_STATUS_CANCEL = -2
+} fps_status_t;
+#define FPS_IS_ERROR(fps) ((int)fps < 0)
 
-/* Uncommon functions. */
-#undef HAVE_VASPRINTF
-#undef HAVE_FSEEKO
-#undef HAVE_FORKPTY
-#undef HAVE_USE_DEFAULT_COLORS
-
-/* Default pager. */
-#define LESSPATH ""
-#define MOREPATH ""
-
-/* Wide curses. */
-#undef CURSES_WIDE
-
-/* Configuration options. */
-#undef USE_ICONV
-
-/* Broken stuff. */
-#undef BROKEN_NEWTERM
-
-/* Optional parts. */
-#undef X3270_ANSI
-#undef X3270_APL
-#undef X3270_DBCS
-#undef X3270_FT
-#undef X3270_LOCAL_PROCESS
-#undef X3270_MENUS
-#undef X3270_PRINTER
-#undef X3270_SCRIPT
-#undef X3270_TN3270E
-#undef X3270_TRACE
-#undef X3270_IPV6
-#undef X3270_PLUGIN
+fps_status_t fprint_screen(FILE *f, ptype_t ptype, unsigned opts,
+	const char *caption, const char *printer_name);
+fps_status_t fprint_screen_start(FILE *f, ptype_t ptype, unsigned opts,
+	const char *caption, const char *printer_name, fps_t *fps);
+fps_status_t fprint_screen_body(fps_t fps);
+fps_status_t fprint_screen_done(fps_t *fps);

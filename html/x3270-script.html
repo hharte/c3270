@@ -12,62 +12,81 @@
 <a HREF="#Description">Description</a><br>
 <a HREF="#Status-Format">Status Format</a><br>
 <a HREF="#Differences">Differences</a><br>
+<a HREF="#Basic-Programming-Strategies">Basic Programming Strategies</a><br>
 <a HREF="#Script-Specific-Actions">Script-Specific Actions</a><br>
 <a HREF="#File-Transfer">File Transfer</a><br>
 <a HREF="#See-Also">See Also</a><br>
 <a HREF="#Version">Version</a><br>
 </blockquote>
 <a NAME="Name"></a><h2>Name</h2>
-Scripting Facilities for x3270, s3270, ws3270 and c3270
+Scripting Facilities for
+x3270,
+c3270 and s3270
 <a NAME="Synopsis"></a><h2>Synopsis</h2>
 <b>x3270</b> <b>-script</b> [ <i>x3270-options</i> ]
 <br>
-<b>s3270</b> [ <i>s3270-options</i> ]
+<b>x3270</b> <b>-socket</b> [ <i>x3270-options</i> ]
 <br>
-<b>ws3270</b> [ <i>ws3270-options</i> ]
+<b>x3270</b> <b>-scriptport <i>port</i></b> [ <i>x3270-options</i> ]
+<br>
+<b>c3270</b> <b>-socket</b> [ <i>c3270-options</i> ]
+<br>
+<b>c3270</b> <b>-scriptport</b> <i>port</i> [ <i>s3270-options</i> ]
+<br>
+<b>s3270</b> [ <i>s3270-options</i> ]
 <br>
 <b>Script</b> ( <i>command</i> [ ,<i>arg</i>... ] )
 <a NAME="Description"></a><h2>Description</h2>
-The <b>x3270</b> scripting facilities allow the interactive 3270 emulators
-<b>x3270</b> and <b>c3270</b> to be operated under the control of another
-program, and form the basis for the script-only emulators <b>s3270</b>
-and <b>ws3270</b>.
+The <b>x3270</b> scripting facilities allow the interactive 3270
+emulators <b>x3270</b> and <b>c3270</b>
+to be operated under the control of another
+program, and forms the basis for the script-only emulator <b>s3270</b>.
 <p>
-There are two basic scripting methods.
-The first is the <b>peer script</b> facility, invoked by the <b>x3270</b>
-<b>-script</b> switch, and the default mode for <b>s3270</b> and
-<b>ws3270</b>.
-This runs <b>x3270</b>, <b>s3270</b> or <b>ws3270</b> as a child of another
-process.
+There are
+four
+basic scripting methods.
+The first is the <b>peer script</b> facility,
+invoked by the <b>x3270</b>
+<b>-script</b> switch, and the default mode for <b>s3270</b>.
+This runs the emulator as a child of another process.
 Typically this would be a script using
 <i>expect</i>(1), <i>perl</i>(1),
 or the co-process facility of the Korn Shell
 <i>ksh</i>(1).
-Inthis mode, the emulator process looks for commands on its standard input,
+In this mode, the emulator process looks for commands on its standard input,
 and places the responses on standard output.
 <p>
 The second method is the <b>child script</b>
-facility, invoked by the <b>Script</b> action in <b>x3270</b>, <b>c3270</b>,
-or <b>s3270</b>.
+facility, invoked by the emulator's <b>Script</b> action.
 This runs a script as a child process of the emulator.
-The child has access to pipes connected to the emulator; the emulator
-look for commands on one pipe, and places the responses on the other.
-(The file descriptor of the pipe for commands to the emulator
-is passed in the environment variable X3270INPUT; the file descriptor
+The child has access to pipes connected to the
+emulator; the emulator looks for commands on one pipe, and places the responses on the other.
+The file descriptor of the pipe for commands to the emulator
+is passed in the environment variable X3270INPUT (e.g., the text string "7" if
+the file descriptor is 7); the file descriptor
 of the pipe for responses from the emulator is passed in the environment
-variable X3270OUTPUT.)
+variable X3270OUTPUT.
 <p>
-It is possible to mix the two methods.
-A script can invoke another script with the <b>Script</b> action, and
-may also be implicitly nested when a script invokes the
-<b>Connect</b>
-action, and the
-<b>ibm_hosts</b>
-file specifies a login script for that host name.
+The third method uses a TCP socket.
+The <b>-scrpiptport</b> command-line option causes the emulator to
+bind a socket to the specified port (on the IPv4 loopback address, 127.0.0.1).
+The emulator accepts TCP connections on that port.
+Multiple commands and responses can be sent over each connection.
+<p>
+The fourth method uses a Unix-domain socket.
+The <b>-socket</b> command-line option causes the emulator to
+create a Unix-domain stream socket named <b>/tmp/x3sck.</b><i>pid</i>.
+The emulator accepts connections to that socket.
+Multiple commands and responses can be sent over each connection.
+<p>
+It is possible to nest the methods.
+For example, a peer or TCP socket script can invoke the <b>Script</b> action.
+The calling script will be resumed when the nested script completes.
 <p>
 Commands are emulator <i>actions</i>; the syntax is the same as for the
-right-hand side of an Xt translation table entry (an <b>x3270</b> or
-<b>c3270</b> keymap).
+right-hand side of
+an <b>x3270</b> or
+<b>c3270</b> keymap.
 Unlike translation tables, action names are case-insensitive, can be
 uniquely abbreviated, and the parentheses may be omitted if there are
 no parameters.
@@ -140,7 +159,7 @@ The X window identifier for the main
 window, in hexadecimal preceded by
 <b>0x</b>.
 For
-<b>s3270</b>, <b>ws3270</b> and <b>c3270</b>,
+<b>s3270</b> and <b>c3270</b>,
 this is zero.
 <dt>12 Command Execution Time</dt><dd>
 The time that it took for the host to respond to the previous commnd, in
@@ -188,12 +207,37 @@ unlocks the keyboard, regardless of the state of the <b>AidWait</b> toggle.
 <p>
 Note that the
 <b>Script</b>
-action does not complete until end-of-file is
-detected on the pipe or the
-<b>CloseScript</b>
-action is called by the child
-process.
+action does not complete until
+end-of-file is detected on the pipe or the <b>CloseScript</b> action is called by the child process.
 This behavior is not affected by the state of the <b>AidWait</b> toggle.
+<a NAME="Basic-Programming-Strategies"></a><h2>Basic Programming Strategies</h2>
+3270 session scripting can be more difficult than other kinds of scripting,
+because it can be hard to tell when the host is finished processing a
+command.
+There is a well-defined 3270 Data Stream facility for doing this: The emulator
+locks the keyboard when it sends the host an AID, and the later host unlocks
+the keyboard.
+The emulator supports this facility directly by not allowing an AID action
+to complete until the keyboard is unlocked.
+Unfortunately, some hosts and some host applications unlock the keyboard as
+soon as they begin processing the command, instead of after it is finished.
+A human operator can see on the screen when the command is finished (e.g.,
+when a READY prompt is displayed), but it can be difficult for a script to
+do this. For such early-unlock hosts, the only option in a script is to poll the
+screen until it can determine that the command is complete.
+<p>
+Another complication is that host I/O and script operation are asynchronous.
+That is, the host can update the screen at any time, even between actions that
+are reading the screen contents, so a script can get inconsistent results.
+Assistance for this problem is provided by the <b>Snap</b> action.
+The <b>Snap(Save)</b> action saves a snapshot of the screen in a special
+buffer. Then the script can use <b>Snap</b> variants of the <b>Ascii</b> and
+<b>Ebcdic</b> actions (<b>Snap(Ascii)</b> and <b>Snap(Ebcdic)</b>) to query
+the saved buffer -- which the host cannot modify -- to get the data it wants.
+Finally, <b><b>Snap(Wait Output)</b></b> blocks the script until the host
+modifies the screen, specifically since the last call to <b>Snap(Save)</b>.
+Thus a script can poll the screen efficiently by writing a loop that begins
+with <b>Snap(Save)</b> and ends with <b>Snap(Wait Output)</b>.
 <a NAME="Script-Specific-Actions"></a><h2>Script-Specific Actions</h2>
 The following actions have been defined or modified for use with scripts.
 (Note that unlike the display on the status line,
@@ -326,12 +370,38 @@ Outputs the single parameter to
 <dt><b>PrintText</b>([<b>command</b>,]<i>filter</i>)</dt><dd>)
 Pipes an ASCII representation of the current screen image through the named
 <i>filter</i>, e.g., <b>lpr</b>.
-<dt><b>PrintText</b>([<b>html</b>,],<b>file</b>,<i>filename</i>)</dt><dd>)
+<dt><b>PrintText</b>([<b>html</b>,][<b>append</b>,][<b>replace</b>,]<b>file</b>,<i>filename</i>)</dt><dd>)
 Saves the current screen contents in a file.
 With the <b>html</b> option, saves it as HTML, otherwise saves it as plain
 ASCII.
+The <b>append</b> option (the default) causes the data to be appended to the
+file if it already exists. The <b>replace</b> option causes the file to be
+overwritten instead.
 <dt><b>PrintText</b>(<b>html,string</b>)</dt><dd>
 Returns the current screen contents as HTML.
+<dt><b>Query</b>(<i>keyword</i>)</dt><dd>
+Returns state information.
+Keywords are:
+<p>
+<table BORDER cols=3 width="75%">
+<tr><td >Keyword</td>	<td >Output</td></tr>
+
+<tr><td >BindPluName</td>	<td >BIND PLU returned by the host</td></tr>
+<tr><td >ConnectionState</td>	<td >TN3270/TN3270E mode and submode</td></tr>
+<tr><td >CodePage</td>	<td >Host code page</td></tr>
+<tr><td >Cursor</td>	<td >Cursor position (row col)</td></tr>
+<tr><td >Formatted</td>	<td >3270 format state (formatted or unformatted)</td></tr>
+<tr><td >Host</td>	<td >Host name and port</td></tr>
+<tr><td >LocalEncoding</td>	<td >Local character encoding</td></tr>
+<tr><td >LuName</td>	<td >Host name LU name</td></tr>
+<tr><td >Model</td>	<td >3270 model name (IBM-327x-n)</td></tr>
+<tr><td >ScreenCurSize</td>	<td >Current screen size (rows cols)</td></tr>
+<tr><td >ScreenMaxSize</td>	<td >Maximum screen size (rows cols)</td></tr>
+<tr><td >Ssl</td>	<td >SSL state (secure or not-secure) and host validation state (host-verified or host-unverified)</td></tr>
+</table>
+<p>
+Without a <i>keyword</i>, <b>Query</b> returns each of the defined attributes,
+one per line, labeled by its name.
 <dt><b>ReadBuffer</b>(<b>Ascii</b>)</dt><dd>
 Dumps the contents of the screen buffer, one line at a time.
 Positions inside data fields are generally output as 2-digit hexadecimal codes
@@ -387,10 +457,15 @@ appear as an extended attribute).
 In addition, NULL characters in the screen buffer are reported as ASCII
 character 00 instead of 20, even though they should be displayed as blanks.
 <dt><b>ReadBuffer</b>(<b>Ebcdic</b>)</dt><dd>
-Equivalent to <b>Snap</b>(<b>Ascii</b>), but with the data fields output as
+Equivalent to <b>ReadBuffer</b>(<b>Ascii</b>), but with the data fields output as
 hexadecimal EBCDIC codes instead.
 Additionally, if a buffer position has the Graphic Escape attribute, it is
 displayed as <b>GE(<i>xx</i>)</b>.
+<dt><b>Script</b>(<i>path</i>[,arg...])</dt><dd>
+Runs a child script, passing it optional command-line arguments.
+<i>path</i> must specify an executable (binary) program: the emulator will
+create a new process and execute it. If you simply want the emulator to read
+commands from a file, use the <b>Source</b> action.
 <dt><b>Snap</b></dt><dd>
 Equivalent to <b>Snap</b>(<b>Save</b>) (see <a HREF="#save">below</a>).
 <dt><b>Snap</b>(<b>Ascii</b>,...)</dt><dd>
@@ -401,7 +476,7 @@ Returns the number of columns in the saved screen image.
 Performs the <b>Ebcdic</b> action on the saved screen image.
 <dt><b>Snap</b>(<b>ReadBuffer</b>)</dt><dd>
 Performs the <b>ReadBuffer</b> action on the saved screen image.
-<dt><b>Snap</b>(<b>Rows</b>)</dt><dd>
+<dt><b>Snap(<b>Rows</b>)</b></dt><dd>
 Returns the number of rows in the saved screen image.
 <a NAME="save"></a><dt><b>Snap</b>(<b>Save</b>)</dt><dd>
 Saves a copy of the screen image and status in a temporary buffer.
@@ -436,7 +511,9 @@ Any output from those commands will become the output from <b>Source</b>.
 If any of the commands fails, the <b>Source</b> command will <i>not</i> abort;
 it will continue reading commands until EOF.
 <dt><b>Title</b>(<i>text</i>)</dt><dd>
-Changes the x3270 window title to <i>text</i>.
+Changes the
+x3270
+window title to <i>text</i>.
 <dt><b>Transfer</b>(<i>keyword</i>=<i>value</i>,...)</dt><dd>
 Invokes IND$FILE file transfer.
 See <a HREF="#File-Transfer"><font size=-1>FILE TRANSFER</font></a> below.
@@ -553,7 +630,7 @@ The options are:
 <tr><td >Direction</td>	<td >No</td>	<td >receive</td>	<td >send</td></tr>
 <tr><td >HostFile</td>	<td >Yes</td>	<td >&nbsp;</td>	<td >&nbsp;</td></tr>
 <tr><td >LocalFile</td>	<td >Yes</td>	<td >&nbsp;</td>	<td >&nbsp;</td></tr>
-<tr><td >Host</td>	<td >No</td>	<td >tso</td>	<td >vm</td></tr>
+<tr><td >Host</td>	<td >No</td>	<td >tso</td>	<td >vm, cics</td></tr>
 <tr><td >Mode</td>	<td >No</td>	<td >ascii</td>	<td >binary</td></tr>
 <tr><td >Cr</td>	<td >No</td>	<td >remove</td>	<td >add, keep</td></tr>
 <tr><td >Remap</td>	<td >No</td>	<td >yes</td>	<td >no</td></tr>
@@ -577,7 +654,7 @@ The name of the file on the host.
 The name of the file on the local workstation.
 <dt><b>Host</b></dt><dd>
 The type of host (which dictates the form of the <b>IND$FILE</b> command):
-<b>tso</b> (the default) or <b>vm</b>.
+<b>tso</b> (the default), <b>vm</b> or <b>cics</b>.
 <dt><b>Mode</b></dt><dd>
 Use <b>ascii</b> (the default) for a text file, which will be translated
 between <font size=-1>EBCDIC</font> and <font size=-1>ASCII</font> as necessary.
@@ -593,10 +670,10 @@ transferring it to the local workstation.
 to the host.
 <dt><b>Remap</b></dt><dd>
 Controls text translation for <b>Mode=ascii</b> files.
-The value <b>yes</b> (the default) causes x3270-script to remap the text to ensure
+The value <b>yes</b> (the default) causes c3270 to remap the text to ensure
 maximum compatibility between the workstation's character set and encoding
 and the host's EBCDIC code page.
-The value <b>no</b> causes x3270-script to pass the text to or from the host
+The value <b>no</b> causes c3270 to pass the text to or from the host
 as-is, leaving all translation to the <b>IND$FILE</b> program on the host.
 <dt><b>Exist</b></dt><dd>
 Controls what happens when the destination file already exists.
@@ -606,26 +683,30 @@ Controls what happens when the destination file already exists.
 <b>append</b> appends the source file to the destination file.
 <dt><b>Recfm</b></dt><dd>
 Controls the record format of files created on the host.
+(<font size=-1>TSO</font> and <font size=-1>VM</font> hosts only.)
 <b>fixed</b> creates a file with fixed-length records.
 <b>variable</b> creates a file with variable-length records.
-<b>undefined</b> creates a file with undefined-length records (<font size=-1>TSO</font> hosts only).
+<b>undefined</b> creates a file with undefined-length records (<font size=-1>TSO</font> hosts
+only).
 The <b>Lrecl</b> option controls the record length or maximum record length for
 <b>Recfm=fixed</b> and <b>Recfm=variable</b> files, respectively.
 <dt><b>Lrecl</b></dt><dd>
 Specifies the record length (or maximum record length) for files created on
 the host.
+(<font size=-1>TSO</font> and <font size=-1>VM</font> hosts only.)
 <dt><b>Blksize</b></dt><dd>
-Specifies the block size for files created on the host.  (<font size=-1>TSO</font> hosts only.)
+Specifies the block size for files created on the host.
+(<font size=-1>TSO</font> and <font size=-1>VM</font> hosts only.)
 <dt><b>Allocation</b></dt><dd>
-Specifies the units for the <font size=-1>TSO</font> host <b>PrimarySpace</b> and
+Specifies the units for the <b>PrimarySpace</b> and
 <b>SecondarySpace</b> options: <b>tracks</b>, <b>cylinders</b> or
-<b>avblock</b>.
+<b>avblock</b>. (<font size=-1>TSO</font> hosts only.)
 <dt><b>PrimarySpace</b></dt><dd>
-Primary allocation for a file created on a <font size=-1>TSO</font> host.
-The units are given by the <b>Allocation</b> option.
+Primary allocation for a file,
+The units are given by the <b>Allocation</b> option. (<font size=-1>TSO</font> hosts only.)
 <dt><b>SecondarySpace</b></dt><dd>
-Secondary allocation for a file created on a <font size=-1>TSO</font> host.
-The units are given by the <b>Allocation</b> option.
+Secondary allocation for a file.
+The units are given by the <b>Allocation</b> option. (<font size=-1>TSO</font> hosts only.) 
 <dt><b>BufferSize</b></dt><dd>
 Buffer size for DFT-mode transfers.
 Can range from 256 to 32768.
@@ -635,22 +716,24 @@ support them.
 <a NAME="See-Also"></a><h2>See Also</h2>
 expect(1)
 <br>
+perl(1)
+<br>
 ksh(1)
 <br>
 <a HREF="x3270-man.html">x3270(1)</a>
 <br>
+<a HREF="x3270if.html">x3270if(1)</a>
+<br>
 <a HREF="c3270-man.html">c3270(1)</a>
 <br>
 <a HREF="s3270-man.html">s3270(1)</a>
-<br>
-<a HREF="ws3270-man.html">ws3270(1)</a>
 <a NAME="Version"></a><h2>Version</h2>
-Version 3.3.12ga13
+Version 3.3.15ga8
 <hr>
 <i>
 This HTML document and the accompanying troff document were generated with
 a set of write-only <b>m4</b> macros and the powerful <b>vi</b> editor.
-<br>Last modified 02 May 2013.
+<br>Last modified 24 December 2014.
 </i>
 </body>
 </html>

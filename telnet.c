@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2013, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * Copyright (c) 2004, Don Russell.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta,
@@ -38,31 +38,32 @@
  */
 
 #include "globals.h"
-#if defined(_WIN32) /*[*/
-#include <winsock2.h>
-#include <ws2tcpip.h>
-#else /*][*/
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
+
+#if !defined(_WIN32) /*[*/
+# include <sys/socket.h>
+# include <sys/ioctl.h>
+# include <netinet/in.h>
 #endif /*]*/
 #define TELCMDS 1
 #define TELOPTS 1
 #include "arpa_telnet.h"
 #if !defined(_WIN32) /*[*/
-#include <arpa/inet.h>
+# include <arpa/inet.h>
 #endif /*]*/
 #include <errno.h>
 #include <fcntl.h>
 #if !defined(_WIN32) /*[*/
-#include <netdb.h>
+# include <netdb.h>
 #endif /*]*/
 #include <stdarg.h>
 #if defined(HAVE_LIBSSL) /*[*/
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/conf.h>
-#include <openssl/x509v3.h>
+# if defined(_WIN32) /*[*/
+#  include "ssl_dll.h"
+# endif /*]*/
+# include <openssl/ssl.h>
+# include <openssl/err.h>
+# include <openssl/conf.h>
+# include <openssl/x509v3.h>
 #endif /*]*/
 #include "tn3270e.h"
 #include "3270ds.h"
@@ -78,7 +79,7 @@
 #include "proxyc.h"
 #include "resolverc.h"
 #if defined(C3270) /*[*/
-#include "screenc.h"
+# include "screenc.h"
 #endif /*]*/
 #include "statusc.h"
 #include "tablesc.h"
@@ -90,17 +91,21 @@
 #include "xioc.h"
 
 #if defined(X3270_DISPLAY) && defined(HAVE_LIBSSL) /*[*/
-#include "objects.h"
-#include <X11/StringDefs.h>
-#include <X11/Xaw/Dialog.h>
+# include "objects.h"
+# include <X11/StringDefs.h>
+# include <X11/Xaw/Dialog.h>
+#endif /*]*/
+
+#if defined(_WIN32) && defined(HAVE_LIBSSL) /*[*/
+#define ROOT_CERTS	"root_certs.txt"
 #endif /*]*/
 
 #if !defined(TELOPT_NAWS) /*[*/
-#define TELOPT_NAWS	31
+# define TELOPT_NAWS	31
 #endif /*]*/
 
 #if !defined(TELOPT_STARTTLS) /*[*/
-#define TELOPT_STARTTLS	46
+# define TELOPT_STARTTLS	46
 #endif /*]*/
 #define TLS_FOLLOWS	1
 
@@ -123,9 +128,6 @@ int             linemode = 1;
 Boolean		local_process = False;
 #endif /*]*/
 char           *termtype;
-
-/* Externals */
-extern struct timeval ds_ts;
 
 /* Statics */
 static int      sock = -1;	/* active socket */
@@ -150,13 +152,11 @@ static unsigned char *sbptr;
 static unsigned char telnet_state;
 static int      syncing;
 #if !defined(_WIN32) /*[*/
-static unsigned long output_id = 0L;
+static ioid_t output_id = NULL_IOID;
 #endif /*]*/
 static char     ttype_tmpval[13];
 
 #if defined(X3270_TN3270E) /*[*/
-static unsigned long e_funcs;	/* negotiated TN3270E functions */
-#define E_OPT(n)	(1 << (n))
 static unsigned short e_xmit_seq; /* transmit sequence number */
 static int response_required;
 #endif /*]*/
@@ -180,7 +180,8 @@ static char     vlnext;
 #endif /*]*/
 
 static int	tn3270e_negotiated = 0;
-static enum { E_NONE, E_3270, E_NVT, E_SSCP } tn3270e_submode = E_NONE;
+static enum { E_UNBOUND, E_3270, E_NVT, E_SSCP } tn3270e_submode = E_UNBOUND;
+#if defined(X3270_TN3270E) /*[*/
 static int	tn3270e_bound = 0;
 static unsigned char *bind_image = NULL;
 static int	bind_image_len = 0;
@@ -195,6 +196,7 @@ static int	bind_ca = 0;
 #define BIND_DIMS_ALT		0x2	/* BIND included alternate size */
 #define BIND_DIMS_VALID		0x4	/* BIND screen sizes were valid */
 static unsigned	bind_state = 0;
+#endif /*]*/
 static char	**lus = (char **)NULL;
 static char	**curr_lu = (char **)NULL;
 static char	*try_lu = CN;
@@ -204,6 +206,27 @@ static char	*proxy_host = CN;
 static char	*proxy_portname = CN;
 static unsigned short proxy_port = 0;
 
+#if defined(X3270_TN3270E) /*[*/
+#define MX8     256             /* maxiumum number of bits */
+#define NB8     64              /* bits per unit */
+#define NU8     (MX8 / NB8)     /* units per object */
+
+typedef struct {
+	uint64_t u[NU8];
+} b8_t;
+
+static void b8_zero(b8_t *b);
+static void b8_not(b8_t *b);
+static void b8_and(b8_t *r, b8_t *a, b8_t *b);
+static void b8_set_bit(b8_t *b, unsigned bit);
+static Boolean b8_bit_is_set(b8_t *b, unsigned bit);
+static Boolean b8_is_zero(b8_t *b);
+static void b8_copy(b8_t *to, b8_t *from);
+static Boolean b8_none_added(b8_t *want, b8_t *got);
+
+static b8_t e_funcs;		/* negotiated TN3270E functions */
+#endif /*]*/
+
 static int telnet_fsm(unsigned char c);
 static void net_rawout(unsigned const char *buf, int len);
 static void check_in3270(void);
@@ -211,6 +234,7 @@ static void store3270in(unsigned char c);
 static void check_linemode(Boolean init);
 static int non_blocking(Boolean on);
 static void net_connected(void);
+static void connection_complete(void);
 #if defined(X3270_TN3270E) /*[*/
 static int tn3270e_negotiate(void);
 #endif /*]*/
@@ -219,8 +243,8 @@ static int process_eor(void);
 #if defined(X3270_TRACE) /*[*/
 static const char *tn3270e_function_names(const unsigned char *, int);
 #endif /*]*/
-static void tn3270e_subneg_send(unsigned char, unsigned long);
-static unsigned long tn3270e_fdecode(const unsigned char *, int);
+static void tn3270e_subneg_send(unsigned char, b8_t *);
+static void tn3270e_fdecode(const unsigned char *, int, b8_t *);
 static void tn3270e_ack(void);
 static void tn3270e_nak(enum pds);
 #endif /*]*/
@@ -245,12 +269,9 @@ static const char *cmd(int c);
 static const char *opt(unsigned char c);
 static const char *nnn(int c);
 #else /*][*/
-#if defined(__GNUC__) /*[*/
-#else /*][*/
-#endif /*]*/
-#define cmd(x) 0
-#define opt(x) 0
-#define nnn(x) 0
+# define cmd(x) 0
+# define opt(x) 0
+# define nnn(x) 0
 #endif /*]*/
 
 /* telnet states */
@@ -282,49 +303,50 @@ static const char *telquals[3] = { "IS", "SEND", "INFO" };
 static const char *telobjs[4] = { "VAR", "VALUE", "ESC", "USERVAR" };
 #endif /*]*/
 #if defined(X3270_TN3270E) /*[*/
-#if defined(X3270_TRACE) /*[*/
+# if defined(X3270_TRACE) /*[*/
 static const char *reason_code[8] = { "CONN-PARTNER", "DEVICE-IN-USE",
 	"INV-ASSOCIATE", "INV-NAME", "INV-DEVICE-TYPE", "TYPE-NAME-ERROR",
 	"UNKNOWN-ERROR", "UNSUPPORTED-REQ" };
-#define rsn(n)	(((n) <= TN3270E_REASON_UNSUPPORTED_REQ) ? \
+#  define rsn(n)	(((n) <= TN3270E_REASON_UNSUPPORTED_REQ) ? \
 			reason_code[(n)] : "??")
-#endif /*]*/
+# endif /*]*/
 static const char *function_name[5] = { "BIND-IMAGE", "DATA-STREAM-CTL",
 	"RESPONSES", "SCS-CTL-CODES", "SYSREQ" };
-#define fnn(n)	(((n) <= TN3270E_FUNC_SYSREQ) ? \
+# define fnn(n)	(((n) <= TN3270E_FUNC_SYSREQ) ? \
 			function_name[(n)] : "??")
-#if defined(X3270_TRACE) /*[*/
+# if defined(X3270_TRACE) /*[*/
 static const char *data_type[9] = { "3270-DATA", "SCS-DATA", "RESPONSE",
 	"BIND-IMAGE", "UNBIND", "NVT-DATA", "REQUEST", "SSCP-LU-DATA",
 	"PRINT-EOJ" };
-#define e_dt(n)	(((n) <= TN3270E_DT_PRINT_EOJ) ? \
+#  define e_dt(n)	(((n) <= TN3270E_DT_PRINT_EOJ) ? \
 			data_type[(n)] : "??")
 static const char *req_flag[1] = { " ERR-COND-CLEARED" };
-#define e_rq(fn, n) (((fn) == TN3270E_DT_REQUEST) ? \
+#  define e_rq(fn, n) (((fn) == TN3270E_DT_REQUEST) ? \
 			(((n) <= TN3270E_RQF_ERR_COND_CLEARED) ? \
 			req_flag[(n)] : " ??") : "")
 static const char *hrsp_flag[3] = { "NO-RESPONSE", "ERROR-RESPONSE",
 	"ALWAYS-RESPONSE" };
-#define e_hrsp(n) (((n) <= TN3270E_RSF_ALWAYS_RESPONSE) ? \
+#  define e_hrsp(n) (((n) <= TN3270E_RSF_ALWAYS_RESPONSE) ? \
 			hrsp_flag[(n)] : "??")
 static const char *trsp_flag[2] = { "POSITIVE-RESPONSE", "NEGATIVE-RESPONSE" };
-#define e_trsp(n) (((n) <= TN3270E_RSF_NEGATIVE_RESPONSE) ? \
+#  define e_trsp(n) (((n) <= TN3270E_RSF_NEGATIVE_RESPONSE) ? \
 			trsp_flag[(n)] : "??")
-#define e_rsp(fn, n) (((fn) == TN3270E_DT_RESPONSE) ? e_trsp(n) : e_hrsp(n))
-#endif /*]*/
+#  define e_rsp(fn, n) (((fn) == TN3270E_DT_RESPONSE) ? e_trsp(n) : e_hrsp(n))
+# endif /*]*/
 #endif /*]*/
 
 #if defined(C3270) && defined(C3270_80_132) /*[*/
-#define XMIT_ROWS	((appres.altscreen != CN)? MODEL_2_ROWS: maxROWS)
-#define XMIT_COLS	((appres.altscreen != CN)? MODEL_2_COLS: maxCOLS)
+# define XMIT_ROWS	((appres.altscreen != CN)? MODEL_2_ROWS: maxROWS)
+# define XMIT_COLS	((appres.altscreen != CN)? MODEL_2_COLS: maxCOLS)
 #else /*][*/
-#define XMIT_ROWS	maxROWS
-#define XMIT_COLS	maxCOLS
+# define XMIT_ROWS	maxROWS
+# define XMIT_COLS	maxCOLS
 #endif /*]*/
 
 static int ssl_init(void);
 
 #if defined(HAVE_LIBSSL) /*[*/
+Boolean ssl_supported = True;
 Boolean secure_connection = False;
 Boolean secure_unverified = False;
 char **unverified_reasons = NULL;
@@ -334,69 +356,80 @@ static SSL *ssl_con;
 static Boolean need_tls_follows = False;
 static char *ssl_cl_hostname;
 static Boolean *ssl_pending;
-#if defined(X3270_DISPLAY) /*[*/
+static Boolean accept_specified_host;
+static char *accept_dnsname;
+struct in_addr host_inaddr;
+static Boolean host_inaddr_valid;
+# if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+struct in6_addr host_in6addr;
+static Boolean host_in6addr_valid;
+# endif /*]*/
+# if defined(X3270_DISPLAY) /*[*/
 static char *ssl_password;
-#endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+# endif /*]*/
+# if defined(X3270_INTERACTIVE) /*[*/
 static Boolean ssl_password_prompted;
-#endif /*]*/
-#if defined(C3270) /*[*/
-extern Boolean any_error_output;
-#endif /*]*/
-#if OPENSSL_VERSION_NUMBER >= 0x00907000L /*[*/
-#define INFO_CONST const
-#else /*][*/
-#define INFO_CONST
-#endif /*]*/
+# endif /*]*/
+# if OPENSSL_VERSION_NUMBER >= 0x00907000L /*[*/
+#  define INFO_CONST const
+# else /*][*/
+#  define INFO_CONST
+# endif /*]*/
 static void client_info_callback(INFO_CONST SSL *s, int where, int ret);
 static void continue_tls(unsigned char *sbbuf, int len);
-static int spc_verify_cert_hostname(X509 *cert, char *hostname);
+static char *spc_verify_cert_hostname(X509 *cert, char *hostname,
+	unsigned char *v4addr, unsigned char *v6addr);
 #endif /*]*/
+static Boolean refused_tls = False;
+static Boolean any_host_data = False;
 
 #if !defined(_WIN32) /*[*/
-static void output_possible(void);
+static void output_possible(unsigned long fd, ioid_t id);
 #endif /*]*/
 
 #if defined(_WIN32) /*[*/
-#define socket_errno()	WSAGetLastError()
-#define SE_EWOULDBLOCK	WSAEWOULDBLOCK
-#define SE_ECONNRESET	WSAECONNRESET
-#define SE_EINTR	WSAEINTR
-#define SE_EAGAIN	WSAEINPROGRESS
-#define SE_EPIPE	WSAECONNABORTED
-#define SE_EINPROGRESS	WSAEINPROGRESS
-#define SOCK_CLOSE(s)	closesocket(s)
-#define SOCK_IOCTL(s, f, v)	ioctlsocket(s, f, (DWORD *)v)
-#define IOCTL_T		u_long
+# define socket_errno()	WSAGetLastError()
+# define SE_EWOULDBLOCK	WSAEWOULDBLOCK
+# define SE_ECONNRESET	WSAECONNRESET
+# define SE_EINTR	WSAEINTR
+# define SE_EAGAIN	WSAEINPROGRESS
+# define SE_EPIPE	WSAECONNABORTED
+# define SE_EINPROGRESS	WSAEINPROGRESS
+# define SOCK_CLOSE(s)	closesocket(s)
+# define SOCK_IOCTL(s, f, v)	ioctlsocket(s, f, (DWORD *)v)
+# define IOCTL_T	u_long
 #else /*][*/
-#define socket_errno()	errno
-#define SE_EWOULDBLOCK	EWOULDBLOCK
-#define SE_ECONNRESET	ECONNRESET
-#define SE_EINTR	EINTR
-#define SE_EAGAIN	EAGAIN
-#define SE_EPIPE	EPIPE
-#if defined(EINPROGRESS) /*[*/
-#define SE_EINPROGRESS	EINPROGRESS
-#endif /*]*/
-#define SOCK_CLOSE(s)	close(s)
-#define SOCK_IOCTL	ioctl
-#define IOCTL_T		int
+# define socket_errno()	errno
+# define SE_EWOULDBLOCK	EWOULDBLOCK
+# define SE_ECONNRESET	ECONNRESET
+# define SE_EINTR	EINTR
+# define SE_EAGAIN	EAGAIN
+# define SE_EPIPE	EPIPE
+# if defined(EINPROGRESS) /*[*/
+#  define SE_EINPROGRESS	EINPROGRESS
+# endif /*]*/
+# define SOCK_CLOSE(s)	close(s)
+# define SOCK_IOCTL	ioctl
+# define IOCTL_T	int
 #endif /*]*/
 
 
 typedef union {
 	struct sockaddr sa;
 	struct sockaddr_in sin;
-#if defined(AF_INET6) /*[*/
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
 	struct sockaddr_in6 sin6;
 #endif /*]*/
 } sockaddr_46_t;
 
 #define NUM_HA	4
-static sockaddr_46_t haddr[4];
+static sockaddr_46_t haddr[NUM_HA];
 static socklen_t ha_len[NUM_HA] = {
     sizeof(haddr[0]), sizeof(haddr[0]), sizeof(haddr[0]), sizeof(haddr[0])
 };
+#if defined(HAVE_LIBSSL) /*[*/
+static Boolean hin[NUM_HA];
+#endif /*]*/
 static int num_ha = 0;
 static int ha_ix = 0;
 
@@ -412,10 +445,10 @@ popup_a_sockerr(char *fmt, ...)
 	va_list args;
 	char buffer[4096];
 
-	 va_start(args, fmt);
-	 vsprintf(buffer, fmt, args);
-	 va_end(args);
-	 popup_an_error("%s: %s", buffer, win32_strerror(socket_errno()));
+	va_start(args, fmt);
+	(void) vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+	popup_an_error("%s: %s", buffer, win32_strerror(socket_errno()));
 }
 #else /*][*/
 void
@@ -424,10 +457,10 @@ popup_a_sockerr(char *fmt, ...)
 	va_list args;
 	char buffer[4096];
 
-	 va_start(args, fmt);
-	 vsprintf(buffer, fmt, args);
-	 va_end(args);
-	 popup_an_errno(errno, "%s", buffer);
+	va_start(args, fmt);
+	(void) vsnprintf(buffer, sizeof(buffer), fmt, args);
+	va_end(args);
+	popup_an_errno(errno, "%s", buffer);
 }
 #endif /*]*/
 
@@ -443,6 +476,28 @@ connect_to(int ix, Boolean noisy, Boolean *pending)
 	int			mtu = OMTU;
 #endif /*]*/
 #	define close_fail	{ (void) SOCK_CLOSE(sock); sock = -1; return -1; }
+#if defined(HAVE_LIBSSL) /*[*/
+	/* Set host_inaddr and host_in6addr for IP address validation. */
+	if (!accept_specified_host && hin[ix]) {
+		if (haddr[ix].sa.sa_family == AF_INET) {
+			memcpy(&host_inaddr, &haddr[ix].sin.sin_addr,
+				sizeof(struct in_addr));
+			host_inaddr_valid = True;
+# if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+			host_in6addr_valid = False;
+# endif /*]*/
+		}
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+		if (haddr[ix].sa.sa_family == AF_INET6) {
+			memcpy(&host_in6addr, &haddr[ix].sin6.sin6_addr,
+				sizeof(struct in6_addr));
+			host_in6addr_valid = True;
+			host_inaddr_valid = False;
+		}
+#endif /*]*/
+	}
+#endif /*]*/
+
 	/* create the socket */
 	if ((sock = socket(haddr[ix].sa.sa_family, SOCK_STREAM, 0)) == -1) {
 		popup_a_sockerr("socket");
@@ -492,8 +547,7 @@ connect_to(int ix, Boolean noisy, Boolean *pending)
 		    sizeof(errmsg)) == 0) {
 		trace_dsn("Trying %s, port %s...\n", hn, pn);
 #if defined(C3270) /*[*/
-		printf("Trying %s, port %s...\n", hn, pn);
-		fflush(stdout);
+		popup_an_info("Trying %s, port %s...", hn, pn);
 #endif /*]*/
 	}
 
@@ -530,7 +584,7 @@ connect_to(int ix, Boolean noisy, Boolean *pending)
 	if (sock_handle == NULL) {
 		char ename[256];
 
-		sprintf(ename, "wc3270-%d", getpid());
+		(void) snprintf(ename, sizeof(ename), "wc3270-%d", getpid());
 
 		sock_handle = CreateEvent(NULL, TRUE, FALSE, ename);
 		if (sock_handle == NULL) {
@@ -552,6 +606,39 @@ connect_to(int ix, Boolean noisy, Boolean *pending)
 #endif /*]*/
 }
 
+#if defined(_WIN32) /*[*/
+#define INET_ADDR_T	unsigned long
+#else /*][*/
+#define INET_ADDR_T	in_addr_t
+#endif /*]*/
+
+#if defined(HAVE_LIBSSL) /*[*/
+static Boolean
+is_numeric_host(const char *host)
+{
+	/* Is it an IPv4 address? */
+	if (inet_addr(host) != (INET_ADDR_T)-1)
+		return True;
+
+# if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+	/*
+	 * Is it an IPv6 address?
+	 *
+	 * The test here is imperfect, but a DNS name can't contain a colon,
+	 * so if the name contains one, and getaddrinfo() succeeds, we can
+	 * assume it is a numeric IPv6 address.  We add an extra level of
+	 * insurance, that it only contains characters that are valid in an
+	 * IPv6 numeric address (hex digits, colons and periods).
+	 */
+	if (strchr(host, ':') &&
+	    strspn(host, ":.0123456789abcdefABCDEF") == strlen(host))
+		return True;
+# endif /*]*/
+
+	return False;
+}
+#endif /*]*/
+
 /*
  * net_connect
  *	Establish a telnet socket to the given host passed as an argument.
@@ -569,6 +656,9 @@ net_connect(const char *host, char *portname, Boolean ls, Boolean *resolving,
 	unsigned short		passthru_port = 0;
 	char			errmsg[1024];
 	int			s;
+#if defined(HAVE_LIBSSL) /*[*/
+	Boolean			inh;
+#endif /*]*/
 
 	if (netrbuf == (unsigned char *)NULL)
 		netrbuf = (unsigned char *)Malloc(BUFSZ);
@@ -591,14 +681,25 @@ net_connect(const char *host, char *portname, Boolean ls, Boolean *resolving,
 	*pending = False;
 
 	Replace(hostname, NewString(host));
+#if defined(HAVE_LIBSSL) /*[*/
+	if (!accept_specified_host) {
+		host_inaddr_valid = False;
+# if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+		host_in6addr_valid = False;
+# endif /*]*/
+		inh = is_numeric_host(host);
+	} else
+		inh = False;
+#endif /*]*/
 
 	/* set up temporary termtype */
 	if (appres.termname == CN) {
 	    	if (appres.oversize) {
 		    	termtype = "IBM-DYNAMIC";
 		} else if (std_ds_host) {
-			(void) sprintf(ttype_tmpval, "IBM-327%c-%d",
-			    appres.m3279 ? '9' : '8', model_num);
+			(void) snprintf(ttype_tmpval, sizeof(ttype_tmpval),
+				"IBM-327%c-%d",
+				appres.m3279? '9': '8', model_num);
 			termtype = ttype_tmpval;
 		} else {
 			termtype = full_model_name;
@@ -661,6 +762,9 @@ net_connect(const char *host, char *portname, Boolean ls, Boolean *resolving,
 			       passthru_len);
 		haddr[0].sin.sin_port = passthru_port;
 		ha_len[0] = sizeof(struct sockaddr_in);
+#if defined(HAVE_LIBSSL) /*[*/
+		hin[0] = False;
+#endif /*]*/
 		num_ha = 1;
 		ha_ix = 0;
 	} else if (proxy_type > 0) {
@@ -674,6 +778,9 @@ net_connect(const char *host, char *portname, Boolean ls, Boolean *resolving,
 		    	popup_an_error("%s", errmsg);
 		    	return -1;
 		}
+#if defined(HAVE_LIBSSL) /*[*/
+		hin[0] = False;
+#endif /*]*/
 		num_ha = 1;
 		ha_ix = 0;
 	} else {
@@ -696,6 +803,9 @@ net_connect(const char *host, char *portname, Boolean ls, Boolean *resolving,
 					popup_an_error("%s", errmsg);
 					return -1;
 				}
+#if defined(HAVE_LIBSSL) /*[*/
+				hin[i] = inh;
+#endif /*]*/
 				num_ha++;
 			}
 			ha_ix = 0;
@@ -740,7 +850,7 @@ net_connect(const char *host, char *portname, Boolean ls, Boolean *resolving,
 #if !defined(_WIN32) /*[*/
 			(void) fcntl(sock, F_SETFD, 1);
 #endif /*]*/
-			net_connected();
+			connection_complete();
 			host_in3270(CONNECTED_ANSI);
 			break;
 		}
@@ -830,7 +940,7 @@ add_unverified_reason(const char *reason)
 	for (i = 0; i < n_unverified_reasons; i++) {
 	    unverified_reasons[i] = s[i];
 	}
-	unverified_reasons[n_unverified_reasons++] = xs_buffer("%s", reason);
+	unverified_reasons[n_unverified_reasons++] = NewString(reason);
 	unverified_reasons[n_unverified_reasons] = CN;
 	Free(s);
 }
@@ -863,6 +973,7 @@ static Boolean
 check_cert_name(void)
 {
 	X509 *cert;
+	char *unmatched_names;
 
 	cert = SSL_get_peer_certificate(ssl_con);
 	if (cert == NULL) {
@@ -877,20 +988,37 @@ check_cert_name(void)
 		}
 	}
 
-	if (!spc_verify_cert_hostname(cert, hostname)) {
+	unmatched_names = spc_verify_cert_hostname(cert,
+		    accept_specified_host? accept_dnsname: hostname,
+		    host_inaddr_valid? (unsigned char *)(void *)&host_inaddr:
+				       NULL,
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+		    host_in6addr_valid? (unsigned char *)(void *)&host_in6addr:
+				       NULL
+#else /*][*/
+		    NULL
+#endif /*]*/
+		    );
+	if (unmatched_names != NULL) {
 		X509_free(cert);
 		if (appres.verify_host_cert) {
 			popup_an_error("Host certificate name(s) do not match "
-				"%s", hostname);
+				"'%s':\n%s", hostname, unmatched_names);
 			return False;
 		} else {
+			char *reason;
+
 			secure_unverified = True;
 			trace_dsn("Host certificate name(s) do not match "
 				"hostname.\n");
-			add_unverified_reason("Host certificate name(s) do "
-				"not match hostname");
+			reason = xs_buffer("Host certificate name(s) do "
+				"not match '%s': %s", hostname,
+				unmatched_names);
+			add_unverified_reason(reason);
+			Free(reason);
 			return True;
 		}
+		Free(unmatched_names);
 	}
 	X509_free(cert);
 	return True;
@@ -940,8 +1068,10 @@ net_connected(void)
 			if (v != X509_V_OK)
 				    popup_an_error("Host certificate "
 					"verification failed:\n"
-					"%s (%ld)",
-					X509_verify_cert_error_string(v), v);
+					"%s (%ld)%s",
+					X509_verify_cert_error_string(v), v,
+					(v == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)?
+					 "\nCA certificate needs to be added to the local database": "");
 
 			/*
 			 * No need to trace the error, it was already
@@ -967,15 +1097,19 @@ net_connected(void)
 	}
 #endif /*]*/
 
+	/* Done with SSL or proxy. */
+	cstate = CONNECTED_INITIAL;
+
 	/* set up telnet options */
 	(void) memset((char *) myopts, 0, sizeof(myopts));
 	(void) memset((char *) hisopts, 0, sizeof(hisopts));
 	did_ne_send = False;
 	deferred_will_ttype = False;
 #if defined(X3270_TN3270E) /*[*/
-	e_funcs = E_OPT(TN3270E_FUNC_BIND_IMAGE) |
-		  E_OPT(TN3270E_FUNC_RESPONSES) |
-		  E_OPT(TN3270E_FUNC_SYSREQ);
+	b8_zero(&e_funcs);
+	b8_set_bit(&e_funcs, TN3270E_FUNC_BIND_IMAGE);
+	b8_set_bit(&e_funcs, TN3270E_FUNC_RESPONSES);
+	b8_set_bit(&e_funcs, TN3270E_FUNC_SYSREQ);
 	e_xmit_seq = 0;
 	response_required = TN3270E_RSF_NO_RESPONSE;
 #endif /*]*/
@@ -993,8 +1127,10 @@ net_connected(void)
 	ns_rsent = 0;
 	syncing = 0;
 	tn3270e_negotiated = 0;
-	tn3270e_submode = E_NONE;
+	tn3270e_submode = E_UNBOUND;
+#if defined(X3270_TN3270E) /*[*/
 	tn3270e_bound = 0;
+#endif /*]*/
 
 	setup_lus();
 
@@ -1009,6 +1145,21 @@ net_connected(void)
 		(void) send(sock, buf, strlen(buf), 0);
 		Free(buf);
 	}
+}
+
+/*
+ * remove_output
+ * 	Cancel the callback for output available.
+ */
+static void
+remove_output(void)
+{
+#if !defined(_WIN32) /*[*/
+	if (output_id != NULL_IOID) {
+		RemoveInput(output_id);
+		output_id = NULL_IOID;
+	}
+#endif /*]*/
 }
 
 /*
@@ -1028,6 +1179,7 @@ connection_complete(void)
 #endif /*]*/
 	host_connected();
 	net_connected();
+	remove_output();
 }
 
 #if !defined(_WIN32) /*[*/
@@ -1037,32 +1189,30 @@ connection_complete(void)
  *	pending, to determine that the connection is complete.
  */
 static void
-output_possible(void)
+output_possible(unsigned long fd, ioid_t id _is_unused)
 {
-	sockaddr_46_t sa;
-	socklen_t len = sizeof(sa);
-
-
-	if (getpeername(sock, &sa.sa, &len) < 0) {
-		trace_dsn("RCVD socket error %d (%s)\n",
-			socket_errno(),
-#if !defined(_WIN32) /*[*/
-			strerror(errno)
-#else /*][*/
-			win32_strerror(GetLastError())
-#endif /*]*/
-			);
-		popup_a_sockerr("Connection failed");
-		host_disconnect(True);
-		return;
+	trace_dsn("Output possible\n");
+	
+	/*
+	 * Try a connect() again to see if the connection completed sucessfully.
+	 * On some systems, such as Linux, this is harmless and succeeds.
+	 * On others, such as MacOS, this is mostly harmless and fails
+	 * with EISCONN.
+	 */
+	if (connect(sock, &haddr[ha_ix].sa, sizeof(haddr[0])) < 0) {
+		if (errno != EISCONN) {
+			trace_dsn("RCVD socket error %d (%s)\n", socket_errno(),
+				strerror(errno));
+			popup_a_sockerr("Connection failed");
+			host_disconnect(True);
+			return;
+		}
 	}
+
 	if (HALF_CONNECTED) {
 		connection_complete();
 	}
-	if (output_id) {
-		RemoveInput(output_id);
-		output_id = 0L;
-	}
+	remove_output();
 }
 #endif /*]*/
 
@@ -1093,13 +1243,26 @@ net_disconnect(void)
 	/* We're not connected to an LU any more. */
 	status_lu(CN);
 
-#if !defined(_WIN32) /*[*/
 	/* We have no more interest in output buffer space. */
-	if (output_id != 0L) {
-		RemoveInput(output_id);
-		output_id = 0L;
-	}
+	remove_output();
+
+	/* If we refused TLS and never entered 3270 mode, say so. */
+	if (refused_tls && !any_host_data) {
+#if defined(HAVE_LIBSSL) /*[*/
+		if (!appres.tls) {
+			popup_an_error("Connection failed:\n"
+				"Host requested TLS but SSL disabled");
+		} else {
+			popup_an_error("Connection failed:\n"
+				"Host requested TLS but SSL DLLs not found");
+		}
+#else /*][*/
+		popup_an_error("Connection failed:\n"
+			"Host requested TLS but SSL not supported");
 #endif /*]*/
+	}
+	refused_tls = False;
+	any_host_data = False;
 }
 
 
@@ -1110,7 +1273,7 @@ net_disconnect(void)
  *	and calls process_ds to process the 3270 data stream.
  */
 void
-net_input(void)
+net_input(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
 	register unsigned char	*cp;
 	int	nr;
@@ -1223,6 +1386,7 @@ net_input(void)
 			return;
 		}
 #endif /*]*/
+#if defined(X3270_TRACE) /*[*/
 		trace_dsn("RCVD socket error %d (%s)\n",
 			socket_errno(),
 #if !defined(_WIN32) /*[*/
@@ -1231,6 +1395,7 @@ net_input(void)
 			win32_strerror(GetLastError())
 #endif /*]*/
 			);
+#endif /*]*/
 		if (HALF_CONNECTED) {
 			if (ha_ix == num_ha - 1) {
 				popup_a_sockerr("Connect to %s, "
@@ -1277,6 +1442,7 @@ net_input(void)
 		}
 		host_connected();
 		net_connected();
+		remove_output();
 	}
 
 #if defined(X3270_TRACE) /*[*/
@@ -1361,7 +1527,8 @@ send_naws(void)
 	char naws_msg[14];
 	int naws_len = 0;
 
-	(void) sprintf(naws_msg, "%c%c%c", IAC, SB, TELOPT_NAWS);
+	(void) snprintf(naws_msg, sizeof(naws_msg), "%c%c%c",
+		IAC, SB, TELOPT_NAWS);
 	naws_len += 3;
 	naws_len += set16(naws_msg + naws_len, XMIT_COLS);
 	naws_len += set16(naws_msg + naws_len, XMIT_ROWS);
@@ -1640,14 +1807,28 @@ telnet_fsm(unsigned char c)
 #if defined(X3270_TN3270E) /*[*/
 		    case TELOPT_TN3270E:
 #endif /*]*/
-#if defined(HAVE_LIBSSL) /*[*/
 		    case TELOPT_STARTTLS:
+#if defined(HAVE_LIBSSL) /*[*/
+			if (c == TELOPT_STARTTLS &&
+				(!ssl_supported || !appres.tls)) {
+
+				refused_tls = True;
+			    	goto wont;
+			}
+#else /*][*/
+			if (c == TELOPT_STARTTLS) {
+				refused_tls = True;
+			    	goto wont;
+			}
 #endif /*]*/
 		    case TELOPT_NEW_ENVIRON:
 			if (c == TELOPT_TN3270E && non_tn3270e_host)
 				goto wont;
 			if (c == TELOPT_TM && !appres.bsd_tm)
 				goto wont;
+			if (c == TELOPT_NEW_ENVIRON && !appres.new_environ) {
+				goto wont;
+			}
 			if (c == TELOPT_TTYPE &&
 			    myopts[TELOPT_NEW_ENVIRON] &&
 			    !did_ne_send) {
@@ -1786,7 +1967,8 @@ telnet_fsm(unsigned char c)
 			}
 #endif /*]*/
 			else if (sbbuf[0] == TELOPT_NEW_ENVIRON &&
-			         sbbuf[1] == TELQUAL_SEND) {
+			         sbbuf[1] == TELQUAL_SEND &&
+				 appres.new_environ) {
 				int tb_len;
 				char *tt_out;
 				char *user;
@@ -1930,7 +2112,7 @@ tn3270e_negotiate(void)
 	static char reported_lu[LU_MAX+1];
 	static char reported_type[LU_MAX+1];
 	int sblen;
-	unsigned long e_rcvd;
+	b8_t e_rcvd;
 
 	/* Find out how long the subnegotiation buffer is. */
 	for (sblen = 0; ; sblen++) {
@@ -2003,7 +2185,7 @@ tn3270e_negotiate(void)
 				snlen? connected_lu: "");
 
 			/* Tell them what we can do. */
-			tn3270e_subneg_send(TN3270E_OP_REQUEST, e_funcs);
+			tn3270e_subneg_send(TN3270E_OP_REQUEST, &e_funcs);
 			break;
 		}
 		case TN3270E_OP_REJECT:
@@ -2044,16 +2226,15 @@ tn3270e_negotiate(void)
 		switch (sbbuf[2]) {
 
 		case TN3270E_OP_REQUEST:
-
 			/* Host is telling us what functions they want. */
 			trace_dsn("REQUEST %s SE\n",
 			    tn3270e_function_names(sbbuf+3, sblen-3));
 
-			e_rcvd = tn3270e_fdecode(sbbuf+3, sblen-3);
-			if ((e_rcvd == e_funcs) || (e_funcs & ~e_rcvd)) {
+			tn3270e_fdecode(sbbuf+3, sblen-3, &e_rcvd);
+			if (b8_none_added(&e_funcs, &e_rcvd)) {
 				/* They want what we want, or less.  Done. */
-				e_funcs = e_rcvd;
-				tn3270e_subneg_send(TN3270E_OP_IS, e_funcs);
+				b8_copy(&e_funcs, &e_rcvd);
+				tn3270e_subneg_send(TN3270E_OP_IS, &e_funcs);
 				tn3270e_negotiated = 1;
 				trace_dsn("TN3270E option negotiation "
 				    "complete.\n");
@@ -2063,38 +2244,42 @@ tn3270e_negotiate(void)
 				 * They want us to do something we can't.
 				 * Request the common subset.
 				 */
-				e_funcs &= e_rcvd;
+				b8_and(&e_funcs, &e_funcs, &e_rcvd);
 				tn3270e_subneg_send(TN3270E_OP_REQUEST,
-				    e_funcs);
+				    &e_funcs);
 			}
 			break;
 
 		case TN3270E_OP_IS:
-
 			/* They accept our last request, or a subset thereof. */
 			trace_dsn("IS %s SE\n",
 			    tn3270e_function_names(sbbuf+3, sblen-3));
-			e_rcvd = tn3270e_fdecode(sbbuf+3, sblen-3);
-			if (e_rcvd != e_funcs) {
-				if (e_funcs & ~e_rcvd) {
-					/*
-					 * They've removed something.  This is
-					 * technically illegal, but we can
-					 * live with it.
-					 */
-					e_funcs = e_rcvd;
-				} else {
-					/*
-					 * They've added something.  Abandon
-					 * TN3270E, they're brain dead.
-					 */
-					backoff_tn3270e("Host illegally added "
-					    "function(s)");
-					break;
-				}
+			tn3270e_fdecode(sbbuf+3, sblen-3, &e_rcvd);
+			if (b8_none_added(&e_funcs, &e_rcvd)) {
+				/* They want what we want, or less.  Done. */
+				b8_copy(&e_funcs, &e_rcvd);
+			} else {
+				/*
+				 * They've added something. Abandon TN3270E,
+				 * they're brain dead.
+				 */
+				backoff_tn3270e("Host illegally added "
+					"function(s)");
+				break;
 			}
 			tn3270e_negotiated = 1;
 			trace_dsn("TN3270E option negotiation complete.\n");
+
+			/*
+			 * If the host does not support BIND_IMAGE, then we
+			 * must go straight to 3270 mode. We do not implicitly
+			 * unlock the keyboard, though -- that requires a
+			 * Write command from the host.
+			 */
+			if (!b8_bit_is_set(&e_funcs, TN3270E_FUNC_BIND_IMAGE)) {
+				tn3270e_submode = E_3270;
+			}
+
 			check_in3270();
 			break;
 
@@ -2139,21 +2324,22 @@ tn3270e_current_opts(void)
 	static char text_buf[1024];
 	char *s = text_buf;
 
-	if (!e_funcs || !IN_E)
+	if (b8_is_zero(&e_funcs) || !IN_E)
 		return CN;
-	for (i = 0; i < 32; i++) {
-		if (e_funcs & E_OPT(i))
-		s += sprintf(s, "%s%s", (s == text_buf) ? "" : " ",
-		    fnn(i));
+	for (i = 0; i < MX8; i++) {
+		if (b8_bit_is_set(&e_funcs, i)) {
+			s += sprintf(s, "%s%s", (s == text_buf) ? "" : " ",
+				fnn(i));
+		}
 	}
 	return text_buf;
 }
 
 /* Transmit a TN3270E FUNCTIONS REQUEST or FUNCTIONS IS message. */
 static void
-tn3270e_subneg_send(unsigned char op, unsigned long funcs)
+tn3270e_subneg_send(unsigned char op, b8_t *funcs)
 {
-	unsigned char proto_buf[7 + 32];
+	unsigned char proto_buf[7 + MX8];
 	int proto_len;
 	int i;
 
@@ -2161,9 +2347,10 @@ tn3270e_subneg_send(unsigned char op, unsigned long funcs)
 	(void) memcpy(proto_buf, functions_req, 4);
 	proto_buf[4] = op;
 	proto_len = 5;
-	for (i = 0; i < 32; i++) {
-		if (funcs & E_OPT(i))
+	for (i = 0; i < MX8; i++) {
+		if (b8_bit_is_set(funcs, (i))) {
 			proto_buf[proto_len++] = i;
+		}
 	}
 
 	/* Complete and send out the protocol message. */
@@ -2179,19 +2366,16 @@ tn3270e_subneg_send(unsigned char op, unsigned long funcs)
 	    cmd(SE));
 }
 
-/* Translate a string of TN3270E functions into a bit-map. */
-static unsigned long
-tn3270e_fdecode(const unsigned char *buf, int len)
+/* Translate a string of TN3270E functions into a bitmap. */
+static void
+tn3270e_fdecode(const unsigned char *buf, int len, b8_t *r)
 {
-	unsigned long r = 0L;
 	int i;
 
-	/* Note that this code silently ignores options >= 32. */
+	b8_zero(r);
 	for (i = 0; i < len; i++) {
-		if (buf[i] < 32)
-			r |= E_OPT(buf[i]);
+		b8_set_bit(r, buf[i]);
 	}
-	return r;
 }
 #endif /*]*/
 
@@ -2351,6 +2535,46 @@ process_bind(unsigned char *buf, int buflen)
 # endif /*]*/
 		}
 	}
+
+	/* A BIND implicitly puts us in 3270 mode. */
+	tn3270e_submode = E_3270;
+}
+#endif /*]*/
+
+#if defined(X3270_TRACE) && defined(X3270_TN3270E) /*[*/
+/* Decode an UNBIND reason. */
+static const char *
+unbind_reason (unsigned char r)
+{
+	static char unk[32];
+
+	switch (r) {
+	case TN3270E_UNBIND_NORMAL:
+		return "normal";
+	case TN3270E_UNBIND_BIND_FORTHCOMING:
+		return "BIND forthcoming";
+	case TN3270E_UNBIND_VR_INOPERATIVE:
+		return "virtual route inoperative";
+	case TN3270E_UNBIND_RX_INOPERATIVE:
+		return "route extension inoperative";
+	case TN3270E_UNBIND_HRESET:
+		return "hierarchical reset";
+	case TN3270E_UNBIND_SSCP_GONE:
+		return "SSCP gone";
+	case TN3270E_UNBIND_VR_DEACTIVATED:
+		return "virtual route deactivated";
+	case TN3270E_UNBIND_LU_FAILURE_PERM:
+		return "unrecoverable LU failure";
+	case TN3270E_UNBIND_LU_FAILURE_TEMP:
+		return "recoverable LU failure";
+	case TN3270E_UNBIND_CLEANUP:
+		return "cleanup";
+	case TN3270E_UNBIND_BAD_SENSE:
+		return "bad sense code or user-supplied sense code";
+	default:
+		snprintf(unk, sizeof(unk), "unknown X'%02x'", r);
+		return unk;
+	}
 }
 #endif /*]*/
 
@@ -2374,9 +2598,10 @@ process_eor(void)
 
 		switch (h->data_type) {
 		case TN3270E_DT_3270_DATA:
-			if ((e_funcs & E_OPT(TN3270E_FUNC_BIND_IMAGE)) &&
-			    !tn3270e_bound)
+			if (b8_bit_is_set(&e_funcs, TN3270E_FUNC_BIND_IMAGE) &&
+			    !tn3270e_bound) {
 				return 0;
+			}
 			tn3270e_submode = E_3270;
 			check_in3270();
 			response_required = h->response_flag;
@@ -2391,8 +2616,9 @@ process_eor(void)
 			response_required = TN3270E_RSF_NO_RESPONSE;
 			return 0;
 		case TN3270E_DT_BIND_IMAGE:
-			if (!(e_funcs & E_OPT(TN3270E_FUNC_BIND_IMAGE)))
+			if (!b8_bit_is_set(&e_funcs, TN3270E_FUNC_BIND_IMAGE)) {
 				return 0;
+			}
 			process_bind(ibuf + EH_SIZE, (ibptr - ibuf) - EH_SIZE);
 			if (bind_state & BIND_DIMS_PRESENT) {
 				if (bind_state & BIND_DIMS_ALT) {
@@ -2427,8 +2653,13 @@ process_eor(void)
 			check_in3270();
 			return 0;
 		case TN3270E_DT_UNBIND:
-			if (!(e_funcs & E_OPT(TN3270E_FUNC_BIND_IMAGE)))
+			if (!b8_bit_is_set(&e_funcs, TN3270E_FUNC_BIND_IMAGE)) {
 				return 0;
+			}
+			if ((ibptr - ibuf) > EH_SIZE) {
+				trace_ds("< UNBIND %s\n",
+					unbind_reason(ibuf[EH_SIZE]));
+			}
 			tn3270e_bound = 0;
 			/*
 			 * Undo any screen-sizing effects from a previous BIND.
@@ -2438,8 +2669,7 @@ process_eor(void)
 			altROWS = maxROWS;
 			altCOLS = maxCOLS;
 			ctlr_erase(False);
-			if (tn3270e_submode == E_3270)
-				tn3270e_submode = E_NONE;
+			tn3270e_submode = E_UNBOUND;
 			check_in3270();
 			return 0;
 		case TN3270E_DT_NVT_DATA:
@@ -2451,8 +2681,9 @@ process_eor(void)
 			}
 			return 0;
 		case TN3270E_DT_SSCP_LU_DATA:
-			if (!(e_funcs & E_OPT(TN3270E_FUNC_BIND_IMAGE)))
+			if (!b8_bit_is_set(&e_funcs, TN3270E_FUNC_BIND_IMAGE)) {
 				return 0;
+			}
 			tn3270e_submode = E_SSCP;
 			check_in3270();
 			ctlr_write_sscp_lu(ibuf + EH_SIZE,
@@ -2476,7 +2707,7 @@ process_eor(void)
  *	Called when there is an exceptional condition on the socket.
  */
 void
-net_exception(void)
+net_exception(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
 #if defined(LOCAL_PROCESS) /*[*/
 	if (local_process) {
@@ -2561,6 +2792,7 @@ net_rawout(unsigned const char *buf, int len)
 				return;
 			}
 #endif /*]*/
+#if defined(X3270_TRACE) /*[*/
 			trace_dsn("RCVD socket error %d (%s)\n",
 				socket_errno(),
 #if !defined(_WIN32) /*[*/
@@ -2569,6 +2801,7 @@ net_rawout(unsigned const char *buf, int len)
 				win32_strerror(GetLastError())
 #endif /*]*/
 				);
+#endif /*]*/
 			if (socket_errno() == SE_EPIPE || socket_errno() == SE_ECONNRESET) {
 				host_disconnect(False);
 				return;
@@ -2610,7 +2843,7 @@ net_hexansi_out(unsigned char *buf, int len)
 
 #if defined(X3270_TRACE) /*[*/
 	/* Trace the data. */
-	if (toggled(DS_TRACE)) {
+	if (toggled(TRACING)) {
 		int i;
 
 		trace_dsn(">");
@@ -2646,7 +2879,7 @@ static void
 net_cookedout(const char *buf, int len)
 {
 #if defined(X3270_TRACE) /*[*/
-	if (toggled(DS_TRACE)) {
+	if (toggled(TRACING)) {
 		int i;
 
 		trace_dsn(">");
@@ -2937,27 +3170,27 @@ check_in3270(void)
 	enum cstate new_cstate = NOT_CONNECTED;
 #if defined(X3270_TRACE) /*[*/
 	static const char *state_name[] = {
-		"unconnected",
-		"resolving hostname",
-		"TCP connection pending",
-		"negotiating SSL or proxy",
-		"connected; 3270 state unknown",
-		"TN3270 NVT",
-		"TN3270 3270",
-		"TN3270E",
-		"TN3270E NVT",
-		"TN3270E SSCP-LU",
-		"TN3270E 3270"
+		"unconnected",				/* NOT_CONNECTED */
+		"resolving hostname",			/* RESOLVING */
+		"TCP connection pending",		/* PENDING */
+		"negotiating SSL or proxy",		/* NEGOTIATING */
+		"connected; 3270 state unknown",	/* CONNECTED_INITIAL */
+		"TN3270 NVT",				/* CONNECTED_ANSI */
+		"TN3270 3270",				/* CONNECTED_3270 */
+		"TN3270E unbound",			/* CONNECTED_UNBOUND */
+		"TN3270E NVT",				/* CONNECTED_NVT */
+		"TN3270E SSCP-LU",			/* CONNECTED_SSCP */
+		"TN3270E 3270"				/* CONNECTED_TN3270E */
 	};
 #endif /*]*/
 
 #if defined(X3270_TN3270E) /*[*/
 	if (myopts[TELOPT_TN3270E]) {
 		if (!tn3270e_negotiated)
-			new_cstate = CONNECTED_INITIAL_E;
+			new_cstate = CONNECTED_UNBOUND;
 		else switch (tn3270e_submode) {
-		case E_NONE:
-			new_cstate = CONNECTED_INITIAL_E;
+		case E_UNBOUND:
+			new_cstate = CONNECTED_UNBOUND;
 			break;
 		case E_NVT:
 			new_cstate = CONNECTED_NVT;
@@ -3019,12 +3252,15 @@ check_in3270(void)
 		/* If we fell out of TN3270E, remove the state. */
 		if (!myopts[TELOPT_TN3270E]) {
 			tn3270e_negotiated = 0;
-			tn3270e_submode = E_NONE;
+			tn3270e_submode = E_UNBOUND;
 			tn3270e_bound = 0;
 		}
 #endif /*]*/
 		trace_dsn("Now operating in %s mode.\n",
 			state_name[new_cstate]);
+		if (IN_3270 || IN_ANSI || IN_SSCP) {
+			any_host_data = True;
+		}
 		host_in3270(new_cstate);
 	}
 }
@@ -3126,7 +3362,7 @@ nnn(int c)
 {
 	static char	buf[64];
 
-	(void) sprintf(buf, "%d", c);
+	(void) snprintf(buf, sizeof(buf), "%d", c);
 	return buf;
 }
 
@@ -3154,10 +3390,8 @@ opt(unsigned char c)
 		return TELOPT(c);
 	else if (c == TELOPT_TN3270E)
 		return "TN3270E";
-#if defined(HAVE_LIBSSL) /*[*/
 	else if (c == TELOPT_STARTTLS)
 		return "START-TLS";
-#endif /*]*/
 	else
 		return nnn((int)c);
 }
@@ -3171,9 +3405,8 @@ trace_netdata(char direction, unsigned const char *buf, int len)
 	int offset;
 	struct timeval ts;
 	double tdiff;
-	extern Boolean do_ts;
 
-	if (!toggled(DS_TRACE))
+	if (!toggled(TRACING))
 		return;
 	do_ts = False;
 	(void) gettimeofday(&ts, (struct timezone *)NULL);
@@ -3237,8 +3470,9 @@ net_output(void)
 
 		trace_dsn("SENT TN3270E(%s NO-RESPONSE %u)\n",
 			IN_TN3270E ? "3270-DATA" : "SSCP-LU-DATA", e_xmit_seq);
-		if (e_funcs & E_OPT(TN3270E_FUNC_RESPONSES))
+		if (b8_bit_is_set(&e_funcs, TN3270E_FUNC_RESPONSES)) {
 			e_xmit_seq = (e_xmit_seq + 1) & 0x7fff;
+		}
 	}
 #endif /*]*/
 
@@ -3305,7 +3539,9 @@ tn3270e_nak(enum pds rv)
 	unsigned char rsp_buf[10];
 	tn3270e_header *h_in = (tn3270e_header *)ibuf;
 	int rsp_len = 0;
+#if defined(X3270_TRACE) /*[*/
 	char *neg = NULL;
+#endif /*]*/
 
 	rsp_buf[rsp_len++] = TN3270E_DT_RESPONSE;	    /* data_type */
 	rsp_buf[rsp_len++] = 0;				    /* request_flag */
@@ -3320,17 +3556,23 @@ tn3270e_nak(enum pds rv)
 	default:
 	case PDS_BAD_CMD:
 		rsp_buf[rsp_len++] = TN3270E_NEG_COMMAND_REJECT;
+#if defined(X3270_TRACE) /*[*/
 		neg = "COMMAND-REJECT";
+#endif /*]*/
 		break;
 	case PDS_BAD_ADDR:
 		rsp_buf[rsp_len++] = TN3270E_NEG_OPERATION_CHECK;
+#if defined(X3270_TRACE) /*[*/
 		neg = "OPERATION-CHECK";
+#endif /*]*/
 		break;
 	}
 	rsp_buf[rsp_len++] = IAC;
 	rsp_buf[rsp_len++] = EOR;
+#if defined(X3270_TRACE) /*[*/
 	trace_dsn("SENT TN3270E(RESPONSE NEGATIVE-RESPONSE %u) %s\n",
 		h_in->seq_number[0] << 8 | h_in->seq_number[1], neg);
+#endif /*]*/
 	net_rawout(rsp_buf, rsp_len);
 }
 
@@ -3341,14 +3583,14 @@ net_add_dummy_tn3270e(void)
 {
 	tn3270e_header *h;
 
-	if (!IN_E || tn3270e_submode == E_NONE)
+	if (!IN_E || tn3270e_submode == E_UNBOUND)
 		return False;
 
 	space3270out(EH_SIZE);
 	h = (tn3270e_header *)obptr;
 
 	switch (tn3270e_submode) {
-	case E_NONE:
+	case E_UNBOUND:
 		break;
 	case E_NVT:
 		h->data_type = TN3270E_DT_NVT_DATA;
@@ -3530,7 +3772,7 @@ net_abort(void)
 {
 	static unsigned char buf[] = { IAC, AO };
 
-	if (e_funcs & E_OPT(TN3270E_FUNC_SYSREQ)) {
+	if (b8_bit_is_set(&e_funcs, TN3270E_FUNC_SYSREQ)) {
 		/*
 		 * I'm not sure yet what to do here.  Should the host respond
 		 * to the AO by sending us SSCP-LU data (and putting us into
@@ -3538,14 +3780,14 @@ net_abort(void)
 		 * Time, and testers, will tell.
 		 */
 		switch (tn3270e_submode) {
-		case E_NONE:
+		case E_UNBOUND:
 		case E_NVT:
 			break;
 		case E_SSCP:
 			net_rawout(buf, sizeof(buf));
 			trace_dsn("SENT AO\n");
-			if (tn3270e_bound ||
-			    !(e_funcs & E_OPT(TN3270E_FUNC_BIND_IMAGE))) {
+			if (tn3270e_bound || !b8_bit_is_set(&e_funcs,
+						    TN3270E_FUNC_BIND_IMAGE)) {
 				tn3270e_submode = E_3270;
 				check_in3270();
 			}
@@ -3688,9 +3930,10 @@ net_snap_options(void)
 		(void) memcpy(obptr, functions_req, 4);
 		obptr += 4;
 		*obptr++ = TN3270E_OP_IS;
-		for (i = 0; i < 32; i++) {
-			if (e_funcs & E_OPT(i))
+		for (i = 0; i < MX8; i++) {
+			if (b8_bit_is_set(&e_funcs, i)) {
 				*obptr++ = i;
+			}
 		}
 		*obptr++ = IAC;
 		*obptr++ = SE;
@@ -3925,6 +4168,68 @@ ssl_base_init(char *cl_hostname, Boolean *pending)
 	char err_buf[120];
 	int cert_file_type = SSL_FILETYPE_PEM;
 
+#if defined(_WIN32) /*[*/
+    	if (ssl_dll_init() < 0) {
+	    	/* The DLLs may not be there, or may be the wrong ones. */
+		trace_dsn("SSL DLL init failed: %s\n", ssl_fail_reason);
+	    	ssl_supported = False;
+	    	return;
+	}
+#endif /*]*/
+
+	/* Parse the -accepthostname option. */
+	if (appres.accept_hostname != NULL) {
+		if (!strcasecmp(appres.accept_hostname, "any") ||
+		    !strcmp(appres.accept_hostname, "*")) {
+			accept_specified_host = True;
+			accept_dnsname = "*";
+		} else if (!strncasecmp(appres.accept_hostname, "DNS:", 4) &&
+			    appres.accept_hostname[4] != '\0') {
+			accept_specified_host = True;
+			accept_dnsname = &appres.accept_hostname[4];
+		} else if (!strncasecmp(appres.accept_hostname, "IP:", 3)) {
+			unsigned short port;
+			sockaddr_46_t ahaddr;
+			socklen_t len;
+			char errmsg[256];
+
+			if (resolve_host_and_port(&appres.accept_hostname[3],
+				"0", 0, &port, &ahaddr.sa, &len, errmsg,
+				sizeof(errmsg), NULL) < 0) {
+
+				popup_an_error("Invalid acceptHostname '%s': "
+					"%s", appres.accept_hostname, errmsg);
+				return;
+			}
+			switch (ahaddr.sa.sa_family) {
+			case AF_INET:
+				memcpy(&host_inaddr, &ahaddr.sin.sin_addr,
+					sizeof(struct in_addr));
+				host_inaddr_valid = True;
+				accept_specified_host = True;
+				accept_dnsname = "";
+				break;
+#if defined(AF_INET6) && defined(X3270_IPV6) /*[*/
+			case AF_INET6:
+				memcpy(&host_in6addr, &ahaddr.sin6.sin6_addr,
+					sizeof(struct in6_addr));
+				host_in6addr_valid = True;
+				accept_specified_host = True;
+				accept_dnsname = "";
+				break;
+#endif /*]*/
+			default:
+				break;
+			}
+
+		} else {
+			popup_an_error("Cannot parse acceptHostname '%s' "
+				"(must be 'any' or 'DNS:name' or 'IP:addr')",
+				appres.accept_hostname);
+			return;
+		}
+	}
+
 	if (cl_hostname != CN)
 	    	ssl_cl_hostname = NewString(cl_hostname);
 	if (pending != NULL) {
@@ -3937,7 +4242,7 @@ ssl_base_init(char *cl_hostname, Boolean *pending)
 #if defined(C3270) /*[*/
     try_again:
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	ssl_password_prompted = False;
 #endif /*]*/
 	ssl_ctx = SSL_CTX_new(SSLv23_method());
@@ -3972,7 +4277,19 @@ ssl_base_init(char *cl_hostname, Boolean *pending)
 #if defined(_WIN32) /*[*/
 		char *certs;
 
-		certs = xs_buffer("%sroot_certs.txt", myappdata);
+		certs = xs_buffer("%s%s", myappdata, ROOT_CERTS);
+		if (access(certs, R_OK) < 0) {
+			if (commonappdata == NULL) {
+				popup_an_error("No %s found", ROOT_CERTS);
+				goto fail;
+			}
+			Free(certs);
+			certs = xs_buffer("%s%s", commonappdata, ROOT_CERTS);
+			if (access(certs, R_OK) < 0) {
+				popup_an_error("No %s found", ROOT_CERTS);
+				goto fail;
+			}
+		}
 
 		if (SSL_CTX_load_verify_locations(ssl_ctx,
 			    certs, NULL) != 1) {
@@ -4071,11 +4388,6 @@ ssl_base_init(char *cl_hostname, Boolean *pending)
 	}
 	ssl_pending = NULL;
 
-#if defined(C3270) /*[*/
-	/* Forget about any diagnostics from bad passwords. */
-	any_error_output = False;
-#endif /*]*/
-
 	return;
 
 password_fail:
@@ -4167,6 +4479,26 @@ hostname_matches(const char *hostname, const char *cn, size_t len)
 	return 0;
 }
 
+/* IP address match function. */
+static int
+ipaddr_matches(unsigned char *v4addr, unsigned char *v6addr,
+	unsigned char *data, int len)
+{
+	switch (len) {
+	case 4:
+		if (v4addr)
+			return !memcmp(v4addr, data, 4);
+		break;
+	case 16:
+		if (v6addr)
+			return !memcmp(v6addr, data, 16);
+		break;
+	default:
+		break;
+	}
+	return 0;
+}
+
 /*
  * Certificate hostname expansion function.
  * Mostly, this expands NULs.
@@ -4195,9 +4527,78 @@ expand_hostname(const char *cn, size_t len)
 	return buf;
 }
 
+/*
+ * Add a unique element to a NULL-terminated list of strings.
+ * Return the old list, or free it and return a new one.
+ */
+static char **
+add_to_namelist(char **list, char *item)
+{
+	char **new;
+	int count;
+
+	if (list == NULL) {
+		/* First element. */
+		new = (char **)Malloc(2 * sizeof(char *));
+		new[0] = NewString(item);
+		new[1] = NULL;
+		return new;
+	}
+
+	/* Count the number of elements, and bail if we find a match. */
+	for (count = 0; list[count] != NULL; count++) {
+		if (!strcasecmp(list[count], item))
+			return list;
+	}
+
+	new = (char **)Malloc((count + 2) * sizeof(char *));
+	memcpy(new, list, count * sizeof(char *));
+	Free(list);
+	new[count] = NewString(item);
+	new[count + 1] = NULL;
+	return new;
+}
+
+/*
+ * Free a namelist.
+ */
+static void
+free_namelist(char **list)
+{
+	int i;
+
+	for (i = 0; list[i] != NULL; i++)
+		Free(list[i]);
+	Free(list);
+}
+
+/*
+ * Expand a namelist into text.
+ */
+static char *
+expand_namelist(char **list)
+{
+	int i;
+	char *r = NULL;
+
+	if (list != NULL) {
+		for (i = 0; list[i] != NULL; i++) {
+			char *new;
+
+			new = xs_buffer("%s%s%s",
+				r? r: "",
+				r? " ": "",
+				list[i]);
+			Replace(r, new);
+		}
+	}
+	return r? r: NewString("(none)");
+}
+
 /* Hostname validation function. */
-static int
-spc_verify_cert_hostname(X509 *cert, char *hostname)
+static char *
+spc_verify_cert_hostname(X509 *cert, char *hostname, unsigned char *v4addr,
+	unsigned char *v6addr)
 {
 	int ok = 0;
 	X509_NAME *subj;
@@ -4207,6 +4608,8 @@ spc_verify_cert_hostname(X509 *cert, char *hostname)
 	int num_an, i;
 	unsigned char *dns;
 	int len;
+	char **namelist = NULL;
+	char *nnl;
 
 	/* Check the common name. */
 	if (!ok &&
@@ -4215,13 +4618,19 @@ spc_verify_cert_hostname(X509 *cert, char *hostname)
 		sizeof(name))) > 0) {
 
 		name[sizeof(name) - 1] = '\0';
-		if (hostname_matches(hostname, name, len)) {
+		if (!strcmp(hostname, "*") ||
+		     (!v4addr && !v6addr &&
+		      hostname_matches(hostname, name, len))) {
 			ok = 1;
-			trace_dsn("SSL_connect: common_name %s matches "
+			trace_dsn("SSL_connect: commonName %s matches "
 				"hostname %s\n", name, hostname);
-		} else
-			trace_dsn("SSL_connect: non-matching common name: %s\n",
+		} else {
+			trace_dsn("SSL_connect: non-matching commonName: %s\n",
 				expand_hostname(name, len));
+			nnl = xs_buffer("DNS:%s", expand_hostname(name, len));
+			namelist = add_to_namelist(namelist, nnl);
+			Free(nnl);
+		}
 	}
 
 	/* Check the alternate names. */
@@ -4233,32 +4642,111 @@ spc_verify_cert_hostname(X509 *cert, char *hostname)
 			if (value->type == GEN_DNS) {
 				len = ASN1_STRING_to_UTF8(&dns,
 					value->d.dNSName);
-				if (hostname_matches(hostname, (char *)dns,
-					len)) {
+				if (!strcmp(hostname, "*") ||
+				    (!v4addr && !v6addr &&
+				     hostname_matches(hostname, (char *)dns,
+					 len))) {
 
 					ok = 1;
-					trace_dsn("SSL_connect: common_name "
-						"%s matches hostname %s\n",
-						name, hostname);
+					trace_dsn("SSL_connect: alternameName "
+						"DNS:%s matches hostname %s\n",
+						expand_hostname((char *)dns,
+						    len),
+						hostname);
 					OPENSSL_free(dns);
 					break;
-				} else
+				} else {
 					trace_dsn("SSL_connect: non-matching "
-						"alternate name: %s\n",
+						"alternateName: DNS:%s\n",
 						expand_hostname((char *)dns,
 						    len));
+					nnl = xs_buffer("DNS:%s",
+						expand_hostname((char *)dns,
+						    len));
+					namelist = add_to_namelist(namelist,
+						nnl);
+					Free(nnl);
+				}
 				OPENSSL_free(dns);
+			} else if (value->type == GEN_IPADD) {
+				int i;
+				char *ipbuf;
+
+				if (!strcmp(hostname, "*") ||
+					ipaddr_matches(v4addr, v6addr,
+					    value->d.iPAddress->data,
+					    value->d.iPAddress->length)) {
+					trace_dsn("SSL_connect: matching "
+						"alternateName IP:");
+					ok = 1;
+				} else {
+					trace_dsn("SSL_connect: non-matching "
+						"alternateName: IP:");
+				}
+				ipbuf = NewString("IP:");
+				switch (value->d.iPAddress->length) {
+				case 4:
+					for (i = 0; i < 4; i++) {
+						nnl = xs_buffer("%s%s%u",
+							ipbuf,
+							(i > 0)? ".": "",
+						 value->d.iPAddress->data[i]);
+						Replace(ipbuf, nnl);
+					}
+					break;
+				case 16:
+					for (i = 0; i < 16; i+= 2) {
+						nnl = xs_buffer("%s%s%x",
+							ipbuf,
+							(i > 0)? ":": "",
+	(value->d.iPAddress->data[i] << 8) | value->d.iPAddress->data[i + 1]);
+						Replace(ipbuf, nnl);
+					}
+					break;
+				default:
+					for (i = 0;
+					     i < value->d.iPAddress->length;
+					     i++) {
+						nnl = xs_buffer("%s%s%u",
+							ipbuf,
+							(i > 0)? "-": "",
+						  value->d.iPAddress->data[i]);
+						Replace(ipbuf, nnl);
+					}
+					break;
+				}
+				trace_dsn("%s\n", ipbuf);
+				if (!ok)
+					namelist = add_to_namelist(namelist,
+						ipbuf);
+				Free(ipbuf);
 			}
+			if (ok)
+				break;
 		}
 	}
 
-	return ok;
+	if (ok) {
+		if (namelist)
+			free_namelist(namelist);
+		return NULL;
+	} else if (namelist == NULL)
+	    	return NewString("(none)");
+	else {
+	    	nnl = expand_namelist(namelist);
+		free_namelist(namelist);
+		return nnl;
+	}
 }
 
 /* Create a new OpenSSL connection. */
 static int
 ssl_init(void)
 {
+	if (!ssl_supported) {
+	    	popup_an_error("Cannot connect:\nSSL DLLs not found\n");
+		return -1;
+	}
 	if (ssl_ctx == NULL) {
 	    	popup_an_error("Cannot connect:\nSSL initialization error");
 		return -1;
@@ -4286,10 +4774,12 @@ client_info_callback(INFO_CONST SSL *s, int where, int ret)
 	} else if (where == SSL_CB_CONNECT_EXIT) {
 		if (ret == 0) {
 			trace_dsn("SSL_connect trace: failed in %s\n",
-			    SSL_state_string_long(s));
+				SSL_state_string_long(s));
 		} else if (ret < 0) {
 			unsigned long e;
 			char err_buf[1024];
+			char *st;
+			char *colon;
 
 			err_buf[0] = '\n';
 			e = ERR_get_error();
@@ -4305,9 +4795,15 @@ client_info_callback(INFO_CONST SSL *s, int where, int ret)
 #endif /*]*/
 			else
 				err_buf[0] = '\0';
-			trace_dsn("SSL_connect trace: error in %s%s\n",
+			st = xs_buffer("SSL_connect trace: error in %s%s",
 			    SSL_state_string_long(s),
 			    err_buf);
+			if ((colon = strrchr(st, ':')) != NULL) {
+				*colon = '\n';
+			}
+
+			popup_an_error("%s", st);
+			Free(st);
 		}
 	}
 }
@@ -4366,8 +4862,10 @@ continue_tls(unsigned char *sbbuf, int len)
 		if (v != X509_V_OK)
 			    popup_an_error("Host certificate "
 				"verification failed:\n"
-				"%s (%ld)",
-				X509_verify_cert_error_string(v), v);
+				"%s (%ld)%s",
+				X509_verify_cert_error_string(v), v,
+				(v == X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN)?
+				 "\nCA certificate needs to be added to the local database": "");
 
 		/*
 		 * No need to trace the error, it was already
@@ -4412,10 +4910,11 @@ net_query_bind_plu_name(void)
 	 * negotiated the BIND-IMAGE option.
 	 */
 	if ((cstate == CONNECTED_TN3270E) &&
-	    (e_funcs & E_OPT(TN3270E_FUNC_BIND_IMAGE)))
+	    b8_bit_is_set(&e_funcs, TN3270E_FUNC_BIND_IMAGE)) {
 		return plu_name? plu_name: "";
-	else
+	} else {
 		return "";
+	}
 #else /*][*/
 	/* No TN3270E, no BIND negotiation. */
 	return "";
@@ -4431,13 +4930,10 @@ net_query_connection_state(void)
 		if (IN_E) {
 			switch (tn3270e_submode) {
 			default:
-			case E_NONE:
-				if (tn3270e_bound)
-					return "tn3270e bound";
-				else
-					return "tn3270e unbound";
+			case E_UNBOUND:
+				return "tn3270e unbound";
 			case E_3270:
-				return "tn3270e lu-lu";
+				return "tn3270e 3270";
 			case E_NVT:
 				return "tn3270e nvt";
 			case E_SSCP:
@@ -4482,14 +4978,36 @@ net_query_host(void)
 		} else
 #endif /*]*/
 		{
-			s = xs_buffer("host %s %u %s",
-					hostname, current_port,
-#if defined(HAVE_LIBSSL) /*[*/
-					secure_connection? "encrypted":
-#endif /*]*/
-							   "unencrypted"
-					    );
+			s = xs_buffer("host %s %u", hostname, current_port);
 		}
+		return s;
+	} else
+		return "";
+}
+
+/* Return the SSL state. */
+const char *
+net_query_ssl(void)
+{
+	static char *s = CN;
+
+	if (CONNECTED) {
+		Free(s);
+
+		s = xs_buffer("%s%s",
+#if defined(HAVE_LIBSSL) /*[*/
+			secure_connection? "secure":
+#endif /*]*/
+		                           "not-secure",
+#if defined(HAVE_LIBSSL) /*[*/
+			secure_connection?
+			 (secure_unverified? " host-unverified":
+					     " host-verified"):
+			 ""
+#else /*][*/
+			""
+#endif /*]*/
+			);
 		return s;
 	} else
 		return "";
@@ -4538,7 +5056,11 @@ net_proxy_port(void)
 Boolean
 net_bound(void)
 {
+#if defined(X3270_TN3270E) /*[*/
     	return (IN_E && tn3270e_bound);
+#else /*][*/
+	return 0;
+#endif /*]*/
 }
 
 #if defined(X3270_DISPLAY) && defined(HAVE_LIBSSL) /*[*/
@@ -4609,4 +5131,105 @@ popup_password(void)
 
 	popup_popup(password_shell, XtGrabExclusive);
 }
+#endif /*]*/
+
+#if defined(X3270_TN3270E) /*[*/
+
+/*
+ * 256-bit bitmap functions.
+ *
+ * These are defined for TN3270E function negotiation, but could be of general
+ * use.
+ */
+
+/* Zero a bitmap. */
+static void
+b8_zero(b8_t *b)
+{
+	int i;
+
+	for (i = 0; i < NU8; i++) {
+		b->u[i] = 0;
+	}
+}
+
+/* 1's complement a bitmap. */
+static void
+b8_not(b8_t *b)
+{
+	int i;
+
+	for (i = 0; i < NU8; i++) {
+		b->u[i] = ~b->u[i];
+	}
+}
+
+/* AND two objects. */
+static void
+b8_and(b8_t *r, b8_t *a, b8_t *b)
+{
+	int i;
+
+	for (i = 0; i < NU8; i++) {
+		r->u[i] = a->u[i] & b->u[i];
+	}
+}
+
+/* Set a bit in a bitmap. */
+static void
+b8_set_bit(b8_t *b, unsigned bit)
+{
+	if (bit < MX8) {
+		b->u[bit / NB8] |= (uint64_t)1 << (bit % NB8);
+	}
+}
+
+/* Test a bit in a bitmap. */
+static Boolean
+b8_bit_is_set(b8_t *b, unsigned bit)
+{
+    	if (bit < MX8) {
+		return (b->u[bit / NB8] & ((uint64_t)1 << (bit % NB8))) != 0;
+	} else {
+		return False;
+	}
+}
+
+/* Test a bitmap for all zeroes. */
+static Boolean
+b8_is_zero(b8_t *b)
+{
+	int i;
+
+	for (i = 0; i < NU8; i++) {
+		if (b->u[i]) {
+			return False;
+		}
+	}
+	return True;
+}
+
+/* Copy one bitmap to another. */
+static void
+b8_copy(b8_t *to, b8_t *from)
+{
+    	*to = *from; /* struct copy */
+}
+
+/* Check for bits added to a bitmap. */
+static Boolean
+b8_none_added(b8_t *want, b8_t *got)
+{
+	b8_t t;
+
+	/*
+	 * The basic arithmetic is:
+	 *  !(got & ~want)
+	 */
+	b8_copy(&t, want);
+	b8_not(&t);
+	b8_and(&t, got, &t);
+	return b8_is_zero(&t);
+}
+
 #endif /*]*/

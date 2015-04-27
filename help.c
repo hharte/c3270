@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2009, Paul Mattes.
+ * Copyright (c) 2000-2009, 2013-2014 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -38,12 +38,14 @@
 #include "gluec.h"
 #include "popupsc.h"
 #include "screenc.h"
+#include "utilc.h"
 
 #define P_3270		0x0001	/* 3270 actions */
 #define P_SCRIPTING	0x0002	/* scripting actions */
 #define P_INTERACTIVE	0x0004	/* interactive (command-prompt) actions */
 #define P_OPTIONS	0x0008	/* command-line options */
 #define P_TRANSFER	0x0010	/* file transfer options */
+#define P_HTML		0x0020	/* HTML help */
 
 #if defined(WC3270) /*[*/
 #define PROGRAM	"wc3270"
@@ -85,6 +87,9 @@ static struct {
 #endif /*]*/
 #if defined(X3270_SCRIPT) /*[*/
 	{ "ContinueScript", CN, P_SCRIPTING, "Resume paused script" },
+#endif /*]*/
+#if defined(WC3270) /*[*/
+	{ "Copy", CN, P_3270, "Copy selected text to Windows clipboard" },
 #endif /*]*/
 	{ "CursorSelect", CN, P_3270, "Light pen select at cursor location" },
 	{ "Delete", CN, P_3270, "Delete character at cursor" },
@@ -159,13 +164,12 @@ static struct {
 	    "Start or stop pr3287 printer session" },
 #endif /*]*/
         { "PrintText",
-#if defined(WC3270) /*[*/
-	              "<printer>",
+#if defined(_WIN32) /*[*/
+	    "[html] [rtf] [modi] [caption <caption>] [[file] <filename>]|<printer-name>",
 #else /*][*/
-	              "<print-command>",
+	    "[html] [rtf] [modi] [caption <caption>] [[file] <filename>]|<print-command>",
 #endif /*]*/
-		                         P_SCRIPTING|P_INTERACTIVE,
-	    "Dump screen image to printer" },
+	    P_SCRIPTING|P_INTERACTIVE, "Dump screen image to file or printer" },
 #if defined(X3270_SCRIPT) /*[*/
         { "Query", "<keyword>", P_SCRIPTING|P_INTERACTIVE,
 	    "Query operational parameters" },
@@ -179,11 +183,18 @@ static struct {
 	{ "Right", CN, P_3270, "Move cursor right" },
 	{ "Right2", CN, P_3270, "Move cursor right 2 columns" },
 #if defined(X3270_TRACE) /*[*/
-	{ "ScreenTrace", "on [<file>]|off", P_INTERACTIVE, "Configure screen tracing" },
+	{ "ScreenTrace",
+# if defined(_WIN32) /*[*/
+	    "[on [[file] <filename>]|on printer [<printer-name>]|off]",
+# else /*][*/
+	    "[on [[file] <filename>]|on printer [<print-command>]|off]",
+# endif /*]*/
+	    P_INTERACTIVE, "Configure screen tracing" },
 #endif /*]*/
 #if defined(X3270_SCRIPT) /*[*/
 	{ "Script", "<path> [<arg>...]", P_SCRIPTING, "Run a child script" },
 #endif /*]*/
+	{ "Scroll", "Forward|Backward", P_INTERACTIVE, "Scroll screen" },
 	{ "Show", CN, P_INTERACTIVE, "Display status and settings" },
 #if defined(X3270_SCRIPT) /*[*/
 	{ "Snap", "<args>", P_SCRIPTING, "Screen snapshot manipulation" },
@@ -210,6 +221,7 @@ static struct {
 	{ CN,  CN, 0, CN }
 };
 
+#if defined(X3270_FT) /*[*/
 static const char *ft_help[] = {
 	"Syntax:",
 	"  To be prompted interactively for parameters:",
@@ -224,6 +236,9 @@ static const char *ft_help[] = {
 	"  Mode=ascii|binary                    default 'ascii'",
 	"  Cr=remove|add|keep                   default 'remove'",
 	"  Remap=yes|no                         default 'yes'",
+# if defined(_WIN32) /*[*/
+	"  WindowsCodePage=<n>                  default is system ANSI codepage",
+# endif /*]*/
 	"  Exist=keep|replace|append            default 'keep'",
 	"  Recfm=fixed|variable|undefined       for Direction=send",
 	"  Lrecl=<n>                            for Direction=send",
@@ -235,6 +250,11 @@ static const char *ft_help[] = {
 	"  Transfer Direction=send LocalFile=/tmp/foo \"HostFile=foo text a\" Host=vm",
 	NULL
 };
+#endif /*]*/
+
+#if defined(WC3270) /*[*/
+static void html_help(Boolean);
+#endif /*]*/
 
 static struct {
 	const char *name;
@@ -258,6 +278,9 @@ static struct {
 #endif /*]*/
 #if defined(X3270_FT) /*[*/
 	{ "file-transfer",	P_TRANSFER,	CN, ft_help, NULL },
+#endif /*]*/
+#if defined(WC3270) /*[*/
+	{ "html",		P_HTML,		CN, NULL, html_help },
 #endif /*]*/
 	{ CN, 0, CN }
 };
@@ -285,8 +308,11 @@ Help_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 #endif /*]*/
 #if defined(X3270_FT) /*[*/
 "  help file-transfer file transfer options\n"
-		);
 #endif /*]*/
+#if defined(WC3270) /*[*/
+"  help html          display HTML help file\n"
+#endif /*]*/
+		);
 		return;
 	}
 
@@ -401,3 +427,11 @@ Help_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 			action_output("No such command: %s", params[0]);
 	}
 }
+
+#if defined(WC3270) /*[*/
+static void
+html_help(Boolean ignored _is_unused)
+{
+	start_html_help();
+}
+#endif /*]*/

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2009, Paul Mattes.
+ * Copyright (c) 1995-2014, Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,13 +32,20 @@
 
 #if defined(X3270_TRACE) /*[*/
 
+typedef enum {
+    TSS_FILE,	/* trace to file */
+    TSS_PRINTER	/* trace to printer */
+} tss_t;
+
 extern Boolean trace_skipping;
 extern char *tracefile_name;
-extern char *screentracefile_name;
+extern struct timeval ds_ts;
+extern Boolean do_ts;
 
 const char *rcba(int baddr);
-void toggle_dsTrace(struct toggle *t, enum toggle_type tt);
-void toggle_eventTrace(struct toggle *t, enum toggle_type tt);
+char *screentrace_default_file(ptype_t ptype);
+char *screentrace_default_printer(void);
+void toggle_tracing(struct toggle *t, enum toggle_type tt);
 void toggle_screenTrace(struct toggle *t, enum toggle_type tt);
 void trace_ansi_disc(void);
 void trace_char(char c);
@@ -46,19 +53,22 @@ void trace_ds(const char *fmt, ...) printflike(1, 2);
 void trace_ds_nb(const char *fmt, ...) printflike(1, 2);
 void trace_dsn(const char *fmt, ...) printflike(1, 2);
 void trace_event(const char *fmt, ...) printflike(1, 2);
+tss_t trace_get_screentrace_how(void);
+tss_t trace_get_screentrace_last_how(void);
+const char *trace_get_screentrace_name(void);
 void trace_set_trace_file(const char *path);
-void trace_set_screentrace_file(const char *path);
-void trace_screen(void);
+void trace_set_screentrace_file(tss_t how, ptype_t ptype, const char *name);
+void trace_screen(Boolean is_clear);
 void trace_rollover_check(void);
 
 #else /*][*/
 
 #define rcba 0 &&
 #if defined(__GNUC__) /*[*/
-#define trace_ds(format, args...)
-#define trace_dsn(format, args...)
-#define trace_ds_nb(format, args...)
-#define trace_event(format, args...)
+#define trace_ds(args...)
+#define trace_dsn(args...)
+#define trace_ds_nb(args...)
+#define trace_event(args...)
 #else /*][*/
 #define trace_ds 0 &&
 #define trace_ds_nb 0 &&

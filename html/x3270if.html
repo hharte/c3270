@@ -17,14 +17,16 @@
 <a HREF="#Copyright">Copyright</a><br>
 </blockquote>
 <a NAME="Name"></a><h2>Name</h2>
-x3270if - command interface to x3270, c3270 and s3270
+x3270if - command interface to
+x3270, c3270 and s3270
 <a NAME="Synopsis"></a><h2>Synopsis</h2>
 <b>x3270if</b> [option]... [ <i>action</i> ]
 <br>
 <b>x3270if -i</b>
 <a NAME="Description"></a><h2>Description</h2>
 <b>x3270if</b> provides an interface between scripts and
-the 3270 emulators <i>x3270</i>, <i>c3270</i>, and <i>s3270</i>.
+the 3270 emulators
+<i>x3270</i>, <i>c3270</i> and <i>s3270</i>.
 <p>
 <b>x3270if</b> operates in one of two modes.
 In <b>action mode</b>, it passes a single action and parameters to the
@@ -114,22 +116,22 @@ in two environment variables:
 Output from the emulator, input to the child process.
 <dt><b>X3270INPUT</b></dt><dd>
 Input to the emulator, output from the child process.
+</dl>
 <p>
-On Windows, or when a Unix emulator is started with the
-<b>-scriptport</b> option, the emulator will pass the port number
+When an emulator is started with the
+<b>-scriptport</b> option, the 
+emulator will pass the scriptport port number
 encoded as text in the <b>X3270PORT</b> environment variable.
 <i>x3270if</i> will use that value as if it had been passed to it via the
 <b>-t</b> option.
-<b>X3270PORT</b> takes precedence over <b>X3270OUTPUT</b> and
-<b>X3270INPUT</b>.
-</dl>
+<b>X3270PORT</b> takes precedence over
+<b>X3270OUTPUT</b> and <b>X3270INPUT</b>.
 <a NAME="See-Also"></a><h2>See Also</h2>
-<a HREF="x3270-man.html">x3270(1)</a>,
-<a HREF="c3270-man.html">c3270(1)</a>,
+<a HREF="x3270-man.html">x3270(1)</a>, <a HREF="c3270-man.html">c3270(1)</a>,
 <a HREF="s3270-man.html">s3270(1)</a>,
 <a HREF="x3270-script.html">x3270-script(1)</a>
 <a NAME="Copyright"></a><h2>Copyright</h2>
-Copyright &copy; 1999-2009, Paul Mattes.
+Copyright &copy; 1999-2009, 2013 Paul Mattes.
 <br>
 All rights reserved.
 <p>
@@ -164,7 +166,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 <i>
 This HTML document and the accompanying troff document were generated with
 a set of write-only <b>m4</b> macros and the powerful <b>vi</b> editor.
-<br>Last modified 02 May 2013.
+<br>Last modified 24 December 2014.
 </i>
 </body>
 </html>

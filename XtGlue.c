@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999-2009, Paul Mattes.
+ * Copyright (c) 1999-2009, 2013 Paul Mattes.
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 #include "globals.h"
 #include "appres.h"
 #include "trace_dsc.h"
+#include "utilc.h"
 #if defined(_WIN32) /*[*/
 #include "xioc.h"
 #endif /*]*/
@@ -43,15 +44,11 @@
 #include <X11/keysym.h>
 
 #if !defined(_MSC_VER) /*[*/
-#include <sys/time.h>
+# include <sys/time.h>
 #endif /*]*/
 #include <sys/types.h>
-#if defined(_WIN32) /*[*/
-#include <windows.h>
-#else /*][*/
 #if defined(SEPARATE_SELECT_H) /*[*/
-#include <sys/select.h>
-#endif /*]*/
+# include <sys/select.h>
 #endif /*]*/
 
 #define InputReadMask	0x1
@@ -76,10 +73,6 @@ Error(const char *s)
 void
 Warning(const char *s)
 {
-#if defined(C3270) /*[*/
-	extern Boolean any_error_output;
-#endif /*]*/
-
 	if (Warning_redirect != NULL)
 		(*Warning_redirect)(s);
 	else {
@@ -401,14 +394,14 @@ typedef struct timeout {
 #else /*][*/
 	struct timeval tv;
 #endif /*]*/
-	void (*proc)(void);
+	tofn_t proc;
 	Boolean in_play;
 } timeout_t;
 #define TN	(timeout_t *)NULL
 static timeout_t *timeouts = TN;
 
-unsigned long
-AddTimeOut(unsigned long interval_ms, void (*proc)(void))
+ioid_t
+AddTimeOut(unsigned long interval_ms, tofn_t proc)
 {
 	timeout_t *t_new;
 	timeout_t *t;
@@ -455,11 +448,11 @@ AddTimeOut(unsigned long interval_ms, void (*proc)(void))
 		prev->next = t_new;
 	}
 
-	return (unsigned long)t_new;
+	return (ioid_t)t_new;
 }
 
 void
-RemoveTimeOut(unsigned long timer)
+RemoveTimeOut(ioid_t timer)
 {
 	timeout_t *st = (timeout_t *)timer;
 	timeout_t *t;
@@ -483,15 +476,15 @@ RemoveTimeOut(unsigned long timer)
 /* Input events. */ 
 typedef struct input {  
         struct input *next;
-        int source; 
+        unsigned long source; 
         int condition;
-        void (*proc)(void);
+	iofn_t proc;
 } input_t;          
 static input_t *inputs = (input_t *)NULL;
 static Boolean inputs_changed = False;
 
-unsigned long
-AddInput(int source, void (*fn)(void))
+ioid_t
+AddInput(unsigned long source, iofn_t fn)
 {
 	input_t *ip;
 
@@ -502,11 +495,11 @@ AddInput(int source, void (*fn)(void))
 	ip->next = inputs;
 	inputs = ip;
 	inputs_changed = True;
-	return (unsigned long)ip;
+	return (ioid_t)ip;
 }
 
-unsigned long
-AddExcept(int source, void (*fn)(void))
+ioid_t
+AddExcept(unsigned long source, iofn_t fn)
 {
 #if defined(_WIN32) /*[*/
 	return 0;
@@ -520,13 +513,13 @@ AddExcept(int source, void (*fn)(void))
 	ip->next = inputs;
 	inputs = ip;
 	inputs_changed = True;
-	return (unsigned long)ip;
+	return (ioid_t)ip;
 #endif /*]*/
 }
 
 #if !defined(_WIN32) /*[*/
-unsigned long
-AddOutput(int source, void (*fn)(void))
+ioid_t
+AddOutput(unsigned long source, iofn_t fn)
 {
 	input_t *ip;
 
@@ -537,12 +530,12 @@ AddOutput(int source, void (*fn)(void))
 	ip->next = inputs;
 	inputs = ip;
 	inputs_changed = True;
-	return (unsigned long)ip;
+	return (ioid_t)ip;
 }
 #endif /*]*/
 
 void
-RemoveInput(unsigned long id)
+RemoveInput(ioid_t id)
 {
 	input_t *ip;
 	input_t *prev = (input_t *)NULL;
@@ -577,19 +570,19 @@ select_setup(int *nfds, fd_set *readfds, fd_set *writefds,
 	for (ip = inputs; ip != (input_t *)NULL; ip = ip->next) {
 		if ((unsigned long)ip->condition & InputReadMask) {
 			FD_SET(ip->source, readfds);
-			if (ip->source >= *nfds)
+			if ((int)ip->source >= *nfds)
 				*nfds = ip->source + 1;
 			r = 1;
 		}
 		if ((unsigned long)ip->condition & InputWriteMask) {
 			FD_SET(ip->source, writefds);
-			if (ip->source >= *nfds)
+			if ((int)ip->source >= *nfds)
 				*nfds = ip->source + 1;
 			r = 1;
 		}
 		if ((unsigned long)ip->condition & InputExceptMask) {
 			FD_SET(ip->source, exceptfds);
-			if (ip->source >= *nfds)
+			if ((int)ip->source >= *nfds)
 				*nfds = ip->source + 1;
 			r = 1;
 		}
@@ -689,7 +682,7 @@ process_events(Boolean block)
 			if (now > timeouts->ts)
 				tmo = 0;
 			else
-				tmo = timeouts->ts - now;
+				tmo = (DWORD)(timeouts->ts - now);
 #else /*][*/
 			(void) gettimeofday(&now, (void *)NULL);
 			twait.tv_sec = timeouts->tv.tv_sec - now.tv_sec;
@@ -751,7 +744,7 @@ process_events(Boolean block)
 #else /*][*/
 		    FD_ISSET(ip->source, &rfds)) {
 #endif /*]*/
-			(*ip->proc)();
+			(*ip->proc)(ip->source, (ioid_t)ip);
 			processed_any = True;
 			if (inputs_changed)
 				goto retry;
@@ -759,14 +752,14 @@ process_events(Boolean block)
 #if !defined(_WIN32) /*[*/
 		if (((unsigned long)ip->condition & InputWriteMask) &&
 		    FD_ISSET(ip->source, &wfds)) {
-			(*ip->proc)();
+			(*ip->proc)(ip->source, (ioid_t)ip);
 			processed_any = True;
 			if (inputs_changed)
 				goto retry;
 		}
 		if (((unsigned long)ip->condition & InputExceptMask) &&
 		    FD_ISSET(ip->source, &xfds)) {
-			(*ip->proc)();
+			(*ip->proc)(ip->source, (ioid_t)ip);
 			processed_any = True;
 			if (inputs_changed)
 				goto retry;
@@ -791,7 +784,7 @@ process_events(Boolean block)
 #endif /*]*/
 				timeouts = t->next;
 				t->in_play = True;
-				(*t->proc)();
+				(*t->proc)((ioid_t)t);
 				processed_any = True;
 				Free(t);
 			} else

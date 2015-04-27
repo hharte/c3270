@@ -62,6 +62,19 @@
   </pre></li>
  </ul>
 <h2>Alphabetical Resource List</h2>
+<a name="acceptHostname"></a>
+<b>Name:</b> c3270.acceptHostname<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -accepthostname
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a specific name to accept when validating the name presented in
+    the server's SSL certificate, instead of using the name or IP address used
+    to make the connection. Takes one of three forms: <b>any</b>, which
+    disables name checking, <b>DNS:</b><i>name</i>, which specifies a DNS
+    hostname, and <b>IP:</b><i>address</i>, which specifies a numeric IPv4 or
+    IPv6 address.
+</p>
 <a name="acs"></a>
 <b>Name:</b> c3270.acs<br>
 <b>Type</b>: Boolean<br>
@@ -180,6 +193,7 @@
 <b>Description</b>:<br>
 <p class=indented>    Defines a PEM-format file containing CA (root) certificates, used to
     validate a certificate presented by the host during SSL negotiation.
+    The default is determined by the OpenSSL library on your workstation.
 </p>
 <a name="cbreak"></a>
 <b>Name:</b> c3270.cbreak<br>
@@ -556,10 +570,12 @@
 , -clear dsTrace
 <br>
 <b>Description</b>:<br>
-<p class=indented>    When true, c3270 writes a hexadecimal representation of all network
+<p class=indented>    <i>Deprecated resource -- replaced by <a href=#trace>c3270.trace</a></i>
+    <p class=indented>
+    When true, c3270 writes a hexadecimal representation of all network
     traffic (and its interpretation) into a file, which defaults to
-    <b>/tmp/x3trc.<i>pid</i></b>.
-    The directory prefix is defined by <a href=#traceDir>c3270.traceDir</a>.
+    <b>x3trc.<i>pid</i></b>.
+    The directory where the file is written is defined by <a href=#traceDir>c3270.traceDir</a>.
     If <a href=#traceFile>c3270.traceFile</a> is defined, it gives the entire pathname
     and <a href=#traceDir>c3270.traceDir</a> is ignored.
 </p>
@@ -602,11 +618,13 @@
 , -clear eventTrace
 <br>
 <b>Description</b>:<br>
-<p class=indented>    When true, c3270 traces information about keyboard and mouse
+<p class=indented>    <i>Deprecated resource -- replaced by <a href=#trace>c3270.trace</a></i>
+    <p class=indented>
+    When true, c3270 traces information about keyboard and mouse
     events into a file.
     The default file name is
-    <b>/tmp/x3trc.<i>pid</i></b>.
-    The directory prefix is defined by <a href=#traceDir>c3270.traceDir</a>.
+    <b>x3trc.<i>pid</i></b>.
+    The directory where the file is written is defined by <a href=#traceDir>c3270.traceDir</a>.
     If <a href=#traceFile>c3270.traceFile</a> is defined, it gives the entire pathname
     and <a href=#traceDir>c3270.traceDir</a> is ignored.
 </p>
@@ -815,6 +833,8 @@
 <a name="loginMacro"></a>
 <b>Name:</b> c3270.loginMacro<br>
 <b>Type</b>: String<br>
+<b>Command Line</b>: -loginmacro
+<br>
 <b>Description</b>:<br>
 <p class=indented>    Defines a sequence of commands to run as soon as a host connection is
     established.  Usually these would be commands used to navigate through
@@ -838,7 +858,7 @@
 <a name="m3279"></a>
 <b>Name:</b> c3270.m3279<br>
 <b>Type</b>: Boolean<br>
-<b>Default</b>: false<br>
+<b>Default</b>: true<br>
 <b>Command Line</b>: -color
 <br>
 <b>Description</b>:<br>
@@ -853,7 +873,6 @@
 <b>Description</b>:<br>
 <p class=indented>    If false, the menu bar will not be displayed at the top of
     the c3270 display, even if the terminal supports a mouse.
-    The menu is still available by pressing Ctrl-N.
 </p>
 <a name="metaEscape"></a>
 <b>Name:</b> c3270.metaEscape<br>
@@ -929,6 +948,14 @@
     cursor.  On terminals like xterm and gnome-terminal, this means that the
     usual mouse selection actions must be performed with the Shift key pressed.
     If false, mouse-control events will not be enabled.
+</p>
+<a name="newEnviron"></a>
+<b>Name:</b> c3270.newEnviron<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, c3270 will respond to the TELNET NEW-ENVIRONMENT option. If false,
+    it will not.
 </p>
 <a name="noPrompt"></a>
 <b>Name:</b> c3270.noPrompt<br>
@@ -1038,9 +1065,12 @@
 <a name="printer.assocCommandLine"></a>
 <b>Name:</b> c3270.printer.assocCommandLine<br>
 <b>Type</b>: String<br>
-<b>Default</b>: pr3287 -assoc %L% -command %C% %R% %P% %V% %O% %H%<br>
+<b>Default</b>: pr3287 -assoc %L% -command %C% %R% %P% %V% %S% %O% %H%<br>
 <b>Description</b>:<br>
-<p class=indented>    The shell command to use to start a printer session, when associated with
+<p class=indented>    <i><b>Note:</b> This resource is for debug purposes only. To add optional
+    parameters to the wc3270 command line, use <a href=#printer.options.>c3270.printer.options.</a></i>
+    <p class="indented">
+    The shell command to use to start a printer session, when associated with
     the current TN3270E session LU (when <a href=#printerLU>c3270.printerLU</a> is "<b>.</b>").
     Within the string, the following substitutions
     are made:
@@ -1051,6 +1081,7 @@
 	<li><b>%O%</b> is replaced with the value of <a href=#printer.options>c3270.printer.options</a></li>
 	<li><b>%P%</b> is replaced with the current session's proxy option (<a href=#proxy>c3270.proxy</a>)</li>
 	<li><b>%R%</b> is replaced with an option to pass the current character set</li>
+	<li><b>%S%</b> is replaced with an option to pass the port of the sync socket</li>
 	<li><b>%V%</b> is replaced with SSL-related options</li>
     </ul>
 </p>
@@ -1067,9 +1098,12 @@
 <a name="printer.luCommandLine"></a>
 <b>Name:</b> c3270.printer.luCommandLine<br>
 <b>Type</b>: String<br>
-<b>Default</b>: pr3287 -command %C% %R% %P% %V% %O% %L%@%H%<br>
+<b>Default</b>: pr3287 -command %C% %R% %P% %V% %S% %O% %L%@%H%<br>
 <b>Description</b>:<br>
-<p class=indented>    The shell command to use to start a printer session, when associated with a
+<p class=indented>    <i><b>Note:</b> This resource is for debug purposes only. To add optional
+    parameters to the wc3270 command line, use <a href=#printer.options.>c3270.printer.options.</a></i>
+    <p class="indented">
+    The shell command to use to start a printer session, when associated with a
     specific LU.  Within the string, the following substitutions are made:
     <ul>
 	<li><b>%C%</b> is replaced with <a href=#printer.command>c3270.printer.command</a></li>
@@ -1078,6 +1112,7 @@
 	<li><b>%O%</b> is replaced with the value of <a href=#printer.options>c3270.printer.options</a></li>
 	<li><b>%P%</b> is replaced with current session's proxy option (<a href=#proxy>c3270.proxy</a>)</li>
 	<li><b>%R%</b> is replaced with an option to pass the current character set</li>
+	<li><b>%S%</b> is replaced with an option to pass the port of the sync socket</li>
 	<li><b>%V%</b> is replaced with SSL-related options</li>
     </ul>
 </p>
@@ -1095,6 +1130,14 @@
 <b>Description</b>:<br>
 <p class=indented>    The shell command used by the <b>PrintText</b> action.  An ASCII image of
     the 3270 display becomes the standard input to this command.
+</p>
+<a name="printTextScreensPerPage"></a>
+<b>Name:</b> c3270.printTextScreensPerPage<br>
+<b>Type</b>: Integer<br>
+<b>Default</b>: 1<br>
+<b>Description</b>:<br>
+<p class=indented>    The number of screens to display on a page when tracing screens to the
+    printer.
 </p>
 <a name="qrBgColor"></a>
 <b>Name:</b> c3270.qrBgColor<br>
@@ -1143,6 +1186,18 @@
     gathers a line of input before forwarding it to the host), entering this
     character at the keyboard causes the current input line to be redisplayed.
 </p>
+<a name="saveLines"></a>
+<b>Name:</b> c3270.saveLines<br>
+<b>Type</b>: Integer<br>
+<b>Default</b>: 4096<br>
+<b>Command Line</b>: -sl
+<br>
+<b>Description</b>:<br>
+<p class=indented>    The number of display lines to save for the scroll bar. Note that the
+    scroll bar operates on full screens of data, so the value divided by the
+    number of rows on the screen gives you the number of screens that will be
+    saved.
+</p>
 <a name="sbcsCgcsgid"></a>
 <b>Name:</b> c3270.sbcsCgcsgid<br>
 <b>Type</b>: String<br>
@@ -1165,8 +1220,8 @@
 <p class=indented>    When true, c3270 will save an ASCII version of the screen image in
     a file every time it changes.
     The file name defaults to
-    <b>/tmp/x3scr.<i>pid</i></b>.
-    The directory prefix is defined by <a href=#traceDir>c3270.traceDir</a>.
+    <b>x3scr.<i>pid</i></b>.
+    The directory where the file is written is defined by <a href=#traceDir>c3270.traceDir</a>.
     If <a href=#screenTraceFile>c3270.screenTraceFile</a> is defined, it defines the
     file name and <a href=#traceDir>c3270.traceDir</a> is ignored.
 </p>
@@ -1228,6 +1283,31 @@
 <p class=indented>    An alternate name to be sent in response to the host's TELNET DO OPTION
     TERMINAL-NAME request.  The default is <b>IBM-</b>, followed by the
     value of <a href=#model>c3270.model</a>.
+</p>
+<a name="tls"></a>
+<b>Name:</b> c3270.tls<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, c3270 will accept TLS negotiations from the host. If false, it will
+    reject them.
+</p>
+<a name="trace"></a>
+<b>Name:</b> c3270.trace<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -trace 
+, -set trace
+, -clear trace
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 writes information about events and actions, as well as a
+    hexadecimal representation of all network traffic (and its interpretation)
+    into a file, which defaults to
+    <b>x3trc.<i>pid</i></b>.
+    The directory where the file is written is defined by <a href=#traceDir>c3270.traceDir</a>.
+    If <a href=#traceFile>c3270.traceFile</a> is defined, it gives the entire pathname
+    and <a href=#traceDir>c3270.traceDir</a> is ignored.
 </p>
 <a name="traceDir"></a>
 <b>Name:</b> c3270.traceDir<br>
@@ -1350,38 +1430,40 @@
 </p>
 <h2>Index of All Resources</h2>
 <table border cols=4 width="75%">
-<tr> <td><a href="#acs">acs</a></td> <td><a href="#aidWait">aidWait</a></td> <td><a href="#allBold">allBold</a></td> <td><a href="#altScreen">altScreen</a></td> </tr>
-<tr> <td><a href="#asciiBoxDraw">asciiBoxDraw</a></td> <td><a href="#bindLimit">bindLimit</a></td> <td><a href="#blankFill">blankFill</a></td> <td><a href="#bsdTm">bsdTm</a></td> </tr>
-<tr> <td><a href="#caDir">caDir</a></td> <td><a href="#caFile">caFile</a></td> <td><a href="#cbreak">cbreak</a></td> <td><a href="#certFile">certFile</a></td> </tr>
-<tr> <td><a href="#certFileType">certFileType</a></td> <td><a href="#chainFile">chainFile</a></td> <td><a href="#charset">charset</a></td> <td><a href="#color8">color8</a></td> </tr>
-<tr> <td><a href="#composeMap">composeMap</a></td> <td><a href="#composeMap.foo">composeMap.<i>foo</i></a></td> <td><a href="#confDir">confDir</a></td> <td><a href="#cursesColorForDefault">cursesColorForDefault</a></td> </tr>
-<tr> <td><a href="#cursesColorForIntensified">cursesColorForIntensified</a></td> <td><a href="#cursesColorForProtected">cursesColorForProtected</a></td> <td><a href="#cursesColorForProtectedIntensified">cursesColorForProtectedIntensified</a></td> <td><a href="#cursesColorForHostColor0">cursesColorForHostColor0</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorNeutralBlack">cursesColorForHostColorNeutralBlack</a></td> <td><a href="#cursesColorForHostColor1">cursesColorForHostColor1</a></td> <td><a href="#cursesColorForHostColorBlue">cursesColorForHostColorBlue</a></td> <td><a href="#cursesColorForHostColor2">cursesColorForHostColor2</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorRed">cursesColorForHostColorRed</a></td> <td><a href="#cursesColorForHostColor3">cursesColorForHostColor3</a></td> <td><a href="#cursesColorForHostColorPink">cursesColorForHostColorPink</a></td> <td><a href="#cursesColorForHostColor4">cursesColorForHostColor4</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorGreen">cursesColorForHostColorGreen</a></td> <td><a href="#cursesColorForHostColor5">cursesColorForHostColor5</a></td> <td><a href="#cursesColorForHostColorTurquoise">cursesColorForHostColorTurquoise</a></td> <td><a href="#cursesColorForHostColor6">cursesColorForHostColor6</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorYellow">cursesColorForHostColorYellow</a></td> <td><a href="#cursesColorForHostColor7">cursesColorForHostColor7</a></td> <td><a href="#cursesColorForHostColorNeutralWhite">cursesColorForHostColorNeutralWhite</a></td> <td><a href="#cursesColorForHostColor8">cursesColorForHostColor8</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorBlack">cursesColorForHostColorBlack</a></td> <td><a href="#cursesColorForHostColor9">cursesColorForHostColor9</a></td> <td><a href="#cursesColorForHostColorDeepBlue">cursesColorForHostColorDeepBlue</a></td> <td><a href="#cursesColorForHostColor10">cursesColorForHostColor10</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorOrange">cursesColorForHostColorOrange</a></td> <td><a href="#cursesColorForHostColor12">cursesColorForHostColor12</a></td> <td><a href="#cursesColorForHostColorPurple">cursesColorForHostColorPurple</a></td> <td><a href="#cursesColorForHostColor13">cursesColorForHostColor13</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorPaleGreen">cursesColorForHostColorPaleGreen</a></td> <td><a href="#cursesColorForHostColor14">cursesColorForHostColor14</a></td> <td><a href="#cursesColorForHostColorPaleTurquoise">cursesColorForHostColorPaleTurquoise</a></td> <td><a href="#cursesColorForHostColor15">cursesColorForHostColor15</a></td> </tr>
-<tr> <td><a href="#cursesColorForHostColorGrey">cursesColorForHostColorGrey</a></td> <td><a href="#cursesColorForHostColor16">cursesColorForHostColor16</a></td> <td><a href="#cursesColorForHostColorWhite">cursesColorForHostColorWhite</a></td> <td><a href="#cursesKeypad">cursesKeypad</a></td> </tr>
-<tr> <td><a href="#cursorPos">cursorPos</a></td> <td><a href="#dbcsCgcsgid">dbcsCgcsgid</a></td> <td><a href="#defaultFgBg">defaultFgBg</a></td> <td><a href="#defScreen">defScreen</a></td> </tr>
-<tr> <td><a href="#dftBufferSize">dftBufferSize</a></td> <td><a href="#devName">devName</a></td> <td><a href="#dsTrace">dsTrace</a></td> <td><a href="#eof">eof</a></td> </tr>
-<tr> <td><a href="#erase">erase</a></td> <td><a href="#eventTrace">eventTrace</a></td> <td><a href="#extended">extended</a></td> <td><a href="#hostname">hostname</a></td> </tr>
-<tr> <td><a href="#hostsFile">hostsFile</a></td> <td><a href="#icrnl">icrnl</a></td> <td><a href="#idleCommand">idleCommand</a></td> <td><a href="#idleCommandEnabled">idleCommandEnabled</a></td> </tr>
-<tr> <td><a href="#idleTimeout">idleTimeout</a></td> <td><a href="#inlcr">inlcr</a></td> <td><a href="#intr">intr</a></td> <td><a href="#keyFile">keyFile</a></td> </tr>
-<tr> <td><a href="#keyFileType">keyFileType</a></td> <td><a href="#keymap">keymap</a></td> <td><a href="#keymap.foo">keymap.<i>foo</i></a></td> <td><a href="#keyPasswd">keyPasswd</a></td> </tr>
-<tr> <td><a href="#kill">kill</a></td> <td><a href="#lineWrap">lineWrap</a></td> <td><a href="#loginMacro">loginMacro</a></td> <td><a href="#lnext">lnext</a></td> </tr>
-<tr> <td><a href="#m3279">m3279</a></td> <td><a href="#menuBar">menuBar</a></td> <td><a href="#metaEscape">metaEscape</a></td> <td><a href="#model">model</a></td> </tr>
-<tr> <td><a href="#mono">mono</a></td> <td><a href="#monoCase">monoCase</a></td> <td><a href="#mouse">mouse</a></td> <td><a href="#noPrompt">noPrompt</a></td> </tr>
-<tr> <td><a href="#numericLock">numericLock</a></td> <td><a href="#onlcr">onlcr</a></td> <td><a href="#oerrLock">oerrLock</a></td> <td><a href="#once">once</a></td> </tr>
-<tr> <td><a href="#oversize">oversize</a></td> <td><a href="#port">port</a></td> <td><a href="#proxy">proxy</a></td> <td><a href="#printerLu">printerLu</a></td> </tr>
-<tr> <td><a href="#printer.assocCommandLine">printer.assocCommandLine</a></td> <td><a href="#printer.command">printer.command</a></td> <td><a href="#printer.luCommandLine">printer.luCommandLine</a></td> <td><a href="#printer.options">printer.options</a></td> </tr>
-<tr> <td><a href="#printTextCommand">printTextCommand</a></td> <td><a href="#qrBgColor">qrBgColor</a></td> <td><a href="#quit">quit</a></td> <td><a href="#reconnect">reconnect</a></td> </tr>
-<tr> <td><a href="#reverseVideo">reverseVideo</a></td> <td><a href="#rprnt">rprnt</a></td> <td><a href="#sbcsCgcsgid">sbcsCgcsgid</a></td> <td><a href="#screenTrace">screenTrace</a></td> </tr>
+<tr> <td><a href="#acceptHostname">acceptHostname</a></td> <td><a href="#acs">acs</a></td> <td><a href="#aidWait">aidWait</a></td> <td><a href="#allBold">allBold</a></td> </tr>
+<tr> <td><a href="#altScreen">altScreen</a></td> <td><a href="#asciiBoxDraw">asciiBoxDraw</a></td> <td><a href="#bindLimit">bindLimit</a></td> <td><a href="#blankFill">blankFill</a></td> </tr>
+<tr> <td><a href="#bsdTm">bsdTm</a></td> <td><a href="#caDir">caDir</a></td> <td><a href="#caFile">caFile</a></td> <td><a href="#cbreak">cbreak</a></td> </tr>
+<tr> <td><a href="#certFile">certFile</a></td> <td><a href="#certFileType">certFileType</a></td> <td><a href="#chainFile">chainFile</a></td> <td><a href="#charset">charset</a></td> </tr>
+<tr> <td><a href="#color8">color8</a></td> <td><a href="#composeMap">composeMap</a></td> <td><a href="#composeMap.foo">composeMap.<i>foo</i></a></td> <td><a href="#confDir">confDir</a></td> </tr>
+<tr> <td><a href="#cursesColorForDefault">cursesColorForDefault</a></td> <td><a href="#cursesColorForIntensified">cursesColorForIntensified</a></td> <td><a href="#cursesColorForProtected">cursesColorForProtected</a></td> <td><a href="#cursesColorForProtectedIntensified">cursesColorForProtectedIntensified</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor0">cursesColorForHostColor0</a></td> <td><a href="#cursesColorForHostColorNeutralBlack">cursesColorForHostColorNeutralBlack</a></td> <td><a href="#cursesColorForHostColor1">cursesColorForHostColor1</a></td> <td><a href="#cursesColorForHostColorBlue">cursesColorForHostColorBlue</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor2">cursesColorForHostColor2</a></td> <td><a href="#cursesColorForHostColorRed">cursesColorForHostColorRed</a></td> <td><a href="#cursesColorForHostColor3">cursesColorForHostColor3</a></td> <td><a href="#cursesColorForHostColorPink">cursesColorForHostColorPink</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor4">cursesColorForHostColor4</a></td> <td><a href="#cursesColorForHostColorGreen">cursesColorForHostColorGreen</a></td> <td><a href="#cursesColorForHostColor5">cursesColorForHostColor5</a></td> <td><a href="#cursesColorForHostColorTurquoise">cursesColorForHostColorTurquoise</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor6">cursesColorForHostColor6</a></td> <td><a href="#cursesColorForHostColorYellow">cursesColorForHostColorYellow</a></td> <td><a href="#cursesColorForHostColor7">cursesColorForHostColor7</a></td> <td><a href="#cursesColorForHostColorNeutralWhite">cursesColorForHostColorNeutralWhite</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor8">cursesColorForHostColor8</a></td> <td><a href="#cursesColorForHostColorBlack">cursesColorForHostColorBlack</a></td> <td><a href="#cursesColorForHostColor9">cursesColorForHostColor9</a></td> <td><a href="#cursesColorForHostColorDeepBlue">cursesColorForHostColorDeepBlue</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor10">cursesColorForHostColor10</a></td> <td><a href="#cursesColorForHostColorOrange">cursesColorForHostColorOrange</a></td> <td><a href="#cursesColorForHostColor12">cursesColorForHostColor12</a></td> <td><a href="#cursesColorForHostColorPurple">cursesColorForHostColorPurple</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor13">cursesColorForHostColor13</a></td> <td><a href="#cursesColorForHostColorPaleGreen">cursesColorForHostColorPaleGreen</a></td> <td><a href="#cursesColorForHostColor14">cursesColorForHostColor14</a></td> <td><a href="#cursesColorForHostColorPaleTurquoise">cursesColorForHostColorPaleTurquoise</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColor15">cursesColorForHostColor15</a></td> <td><a href="#cursesColorForHostColorGrey">cursesColorForHostColorGrey</a></td> <td><a href="#cursesColorForHostColor16">cursesColorForHostColor16</a></td> <td><a href="#cursesColorForHostColorWhite">cursesColorForHostColorWhite</a></td> </tr>
+<tr> <td><a href="#cursesKeypad">cursesKeypad</a></td> <td><a href="#cursorPos">cursorPos</a></td> <td><a href="#dbcsCgcsgid">dbcsCgcsgid</a></td> <td><a href="#defaultFgBg">defaultFgBg</a></td> </tr>
+<tr> <td><a href="#defScreen">defScreen</a></td> <td><a href="#dftBufferSize">dftBufferSize</a></td> <td><a href="#devName">devName</a></td> <td><a href="#dsTrace">dsTrace</a></td> </tr>
+<tr> <td><a href="#eof">eof</a></td> <td><a href="#erase">erase</a></td> <td><a href="#eventTrace">eventTrace</a></td> <td><a href="#extended">extended</a></td> </tr>
+<tr> <td><a href="#hostname">hostname</a></td> <td><a href="#hostsFile">hostsFile</a></td> <td><a href="#icrnl">icrnl</a></td> <td><a href="#idleCommand">idleCommand</a></td> </tr>
+<tr> <td><a href="#idleCommandEnabled">idleCommandEnabled</a></td> <td><a href="#idleTimeout">idleTimeout</a></td> <td><a href="#inlcr">inlcr</a></td> <td><a href="#intr">intr</a></td> </tr>
+<tr> <td><a href="#keyFile">keyFile</a></td> <td><a href="#keyFileType">keyFileType</a></td> <td><a href="#keymap">keymap</a></td> <td><a href="#keymap.foo">keymap.<i>foo</i></a></td> </tr>
+<tr> <td><a href="#keyPasswd">keyPasswd</a></td> <td><a href="#kill">kill</a></td> <td><a href="#lineWrap">lineWrap</a></td> <td><a href="#loginMacro">loginMacro</a></td> </tr>
+<tr> <td><a href="#lnext">lnext</a></td> <td><a href="#m3279">m3279</a></td> <td><a href="#menuBar">menuBar</a></td> <td><a href="#metaEscape">metaEscape</a></td> </tr>
+<tr> <td><a href="#model">model</a></td> <td><a href="#mono">mono</a></td> <td><a href="#monoCase">monoCase</a></td> <td><a href="#mouse">mouse</a></td> </tr>
+<tr> <td><a href="#newEnviron">newEnviron</a></td> <td><a href="#noPrompt">noPrompt</a></td> <td><a href="#numericLock">numericLock</a></td> <td><a href="#onlcr">onlcr</a></td> </tr>
+<tr> <td><a href="#oerrLock">oerrLock</a></td> <td><a href="#once">once</a></td> <td><a href="#oversize">oversize</a></td> <td><a href="#port">port</a></td> </tr>
+<tr> <td><a href="#proxy">proxy</a></td> <td><a href="#printerLu">printerLu</a></td> <td><a href="#printer.assocCommandLine">printer.assocCommandLine</a></td> <td><a href="#printer.command">printer.command</a></td> </tr>
+<tr> <td><a href="#printer.luCommandLine">printer.luCommandLine</a></td> <td><a href="#printer.options">printer.options</a></td> <td><a href="#printTextCommand">printTextCommand</a></td> <td><a href="#printTextScreensPerPage">printTextScreensPerPage</a></td> </tr>
+<tr> <td><a href="#qrBgColor">qrBgColor</a></td> <td><a href="#quit">quit</a></td> <td><a href="#reconnect">reconnect</a></td> <td><a href="#reverseVideo">reverseVideo</a></td> </tr>
+<tr> <td><a href="#rprnt">rprnt</a></td> <td><a href="#saveLines">saveLines</a></td> <td><a href="#sbcsCgcsgid">sbcsCgcsgid</a></td> <td><a href="#screenTrace">screenTrace</a></td> </tr>
 <tr> <td><a href="#screenTraceFile">screenTraceFile</a></td> <td><a href="#scriptPort">scriptPort</a></td> <td><a href="#selfSignedOk">selfSignedOk</a></td> <td><a href="#socket">socket</a></td> </tr>
-<tr> <td><a href="#suppressActions">suppressActions</a></td> <td><a href="#termName">termName</a></td> <td><a href="#traceDir">traceDir</a></td> <td><a href="#traceFile">traceFile</a></td> </tr>
-<tr> <td><a href="#traceFileSize">traceFileSize</a></td> <td><a href="#typeahead">typeahead</a></td> <td><a href="#underscore">underscore</a></td> <td><a href="#unlockDelay">unlockDelay</a></td> </tr>
-<tr> <td><a href="#unlockDelayMs">unlockDelayMs</a></td> <td><a href="#user">user</a></td> <td><a href="#verifyHostCert">verifyHostCert</a></td> <td><a href="#werase">werase</a></td> </tr>
+<tr> <td><a href="#suppressActions">suppressActions</a></td> <td><a href="#termName">termName</a></td> <td><a href="#tls">tls</a></td> <td><a href="#trace">trace</a></td> </tr>
+<tr> <td><a href="#traceDir">traceDir</a></td> <td><a href="#traceFile">traceFile</a></td> <td><a href="#traceFileSize">traceFileSize</a></td> <td><a href="#typeahead">typeahead</a></td> </tr>
+<tr> <td><a href="#underscore">underscore</a></td> <td><a href="#unlockDelay">unlockDelay</a></td> <td><a href="#unlockDelayMs">unlockDelayMs</a></td> <td><a href="#user">user</a></td> </tr>
+<tr> <td><a href="#verifyHostCert">verifyHostCert</a></td> <td><a href="#werase">werase</a></td> </tr>
 </table>
 <h2>Basic Configuration Resources</h2>
 <table border cols=4 width="75%">
@@ -1421,14 +1503,15 @@
 </table>
 <h2>Security Resources</h2>
 <table border cols=4 width="75%">
-<tr> <td><a href="#caDir">caDir</a></td> <td><a href="#caFile">caFile</a></td> <td><a href="#certFile">certFile</a></td> <td><a href="#certFileType">certFileType</a></td> </tr>
-<tr> <td><a href="#chainFile">chainFile</a></td> <td><a href="#keyFile">keyFile</a></td> <td><a href="#keyFileType">keyFileType</a></td> <td><a href="#keyPasswd">keyPasswd</a></td> </tr>
-<tr> <td><a href="#noPrompt">noPrompt</a></td> <td><a href="#selfSignedOk">selfSignedOk</a></td> <td><a href="#suppressActions">suppressActions</a></td> <td><a href="#verifyHostCert">verifyHostCert</a></td> </tr>
+<tr> <td><a href="#acceptHostname">acceptHostname</a></td> <td><a href="#caDir">caDir</a></td> <td><a href="#caFile">caFile</a></td> <td><a href="#certFile">certFile</a></td> </tr>
+<tr> <td><a href="#certFileType">certFileType</a></td> <td><a href="#chainFile">chainFile</a></td> <td><a href="#keyFile">keyFile</a></td> <td><a href="#keyFileType">keyFileType</a></td> </tr>
+<tr> <td><a href="#keyPasswd">keyPasswd</a></td> <td><a href="#noPrompt">noPrompt</a></td> <td><a href="#selfSignedOk">selfSignedOk</a></td> <td><a href="#suppressActions">suppressActions</a></td> </tr>
+<tr> <td><a href="#tls">tls</a></td> <td><a href="#verifyHostCert">verifyHostCert</a></td> </tr>
 </table>
 <h2>Tracing Resources</h2>
 <table border cols=4 width="75%">
 <tr> <td><a href="#dsTrace">dsTrace</a></td> <td><a href="#eventTrace">eventTrace</a></td> <td><a href="#screenTrace">screenTrace</a></td> <td><a href="#screenTraceFile">screenTraceFile</a></td> </tr>
-<tr> <td><a href="#traceDir">traceDir</a></td> <td><a href="#traceFile">traceFile</a></td> <td><a href="#traceFileSize">traceFileSize</a></td> </tr>
+<tr> <td><a href="#trace">trace</a></td> <td><a href="#traceDir">traceDir</a></td> <td><a href="#traceFile">traceFile</a></td> <td><a href="#traceFileSize">traceFileSize</a></td> </tr>
 </table>
 <h2>Other Resources</h2>
 <table border cols=4 width="75%">
@@ -1436,15 +1519,16 @@
 <tr> <td><a href="#cbreak">cbreak</a></td> <td><a href="#composeMap">composeMap</a></td> <td><a href="#composeMap.foo">composeMap.<i>foo</i></a></td> <td><a href="#confDir">confDir</a></td> </tr>
 <tr> <td><a href="#cursesKeypad">cursesKeypad</a></td> <td><a href="#defScreen">defScreen</a></td> <td><a href="#hostsFile">hostsFile</a></td> <td><a href="#keymap.foo">keymap.<i>foo</i></a></td> </tr>
 <tr> <td><a href="#loginMacro">loginMacro</a></td> <td><a href="#metaEscape">metaEscape</a></td> <td><a href="#mono">mono</a></td> <td><a href="#monoCase">monoCase</a></td> </tr>
-<tr> <td><a href="#once">once</a></td> <td><a href="#oversize">oversize</a></td> <td><a href="#printer.assocCommandLine">printer.assocCommandLine</a></td> <td><a href="#printer.command">printer.command</a></td> </tr>
-<tr> <td><a href="#printer.luCommandLine">printer.luCommandLine</a></td> <td><a href="#printer.options">printer.options</a></td> <td><a href="#printTextCommand">printTextCommand</a></td> <td><a href="#qrBgColor">qrBgColor</a></td> </tr>
-<tr> <td><a href="#reconnect">reconnect</a></td> <td><a href="#scriptPort">scriptPort</a></td> <td><a href="#socket">socket</a></td> <td><a href="#typeahead">typeahead</a></td> </tr>
-<tr> <td><a href="#unlockDelay">unlockDelay</a></td> <td><a href="#unlockDelayMs">unlockDelayMs</a></td> </tr>
+<tr> <td><a href="#newEnviron">newEnviron</a></td> <td><a href="#once">once</a></td> <td><a href="#oversize">oversize</a></td> <td><a href="#printer.assocCommandLine">printer.assocCommandLine</a></td> </tr>
+<tr> <td><a href="#printer.command">printer.command</a></td> <td><a href="#printer.luCommandLine">printer.luCommandLine</a></td> <td><a href="#printer.options">printer.options</a></td> <td><a href="#printTextCommand">printTextCommand</a></td> </tr>
+<tr> <td><a href="#printTextScreensPerPage">printTextScreensPerPage</a></td> <td><a href="#qrBgColor">qrBgColor</a></td> <td><a href="#reconnect">reconnect</a></td> <td><a href="#saveLines">saveLines</a></td> </tr>
+<tr> <td><a href="#scriptPort">scriptPort</a></td> <td><a href="#socket">socket</a></td> <td><a href="#typeahead">typeahead</a></td> <td><a href="#unlockDelay">unlockDelay</a></td> </tr>
+<tr> <td><a href="#unlockDelayMs">unlockDelayMs</a></td> </tr>
 </table>
 <h2>Deprecated Resources</h2>
 <table border cols=4 width="75%">
 <tr> <td><a href="#extended">extended</a></td> <td><a href="#m3279">m3279</a></td> </tr>
 </table>
-<p><i>c3270 version 3.3.12ga13 Thu May  2 20:12:54 CDT 2013
+<p><i>c3270 version 3.3.15ga8 Wed Dec 24 18:11:02 CST 2014
 
 </body>

@@ -1,5 +1,5 @@
 !
-! Copyright (c) 1995-2013, Paul Mattes.
+! Copyright (c) 1995-2014, Paul Mattes.
 ! All rights reserved.
 !
 ! Redistribution and use in source and binary forms, with or without
@@ -201,8 +201,7 @@ x3270.charsetList:			U.S. English (CP 037): us-intl\n\
 ! x3270.crosshair:			false
 ! x3270.cursorBlink:			false
 ! x3270.cursorPos:			true
-! x3270.dsTrace:			false
-! x3270.eventTrace:			false
+! x3270.tracing:			false
 ! x3270.lineWrap:			true
 ! x3270.marginedPaste:			false
 ! x3270.monoCase:			false
@@ -306,13 +305,13 @@ x3270.traceCommand:			tail -f
 ! Printer session options
 #endif
 #ifdef _WIN32
-x3270.printer.assocCommandLine:		wpr3287.exe -assoc %L% %R% %P% %V% %O% %I% %H%
-x3270.printer.luCommandLine:		wpr3287.exe %R% %P% %V% %O% %I% %L%@%H%
+x3270.printer.assocCommandLine:		wpr3287.exe -assoc %L% %R% %P% %V% %S% %I% %O% %H%
+x3270.printer.luCommandLine:		wpr3287.exe %R% %P% %V% %S% %I% %O% %L%@%H%
 ! x3270.printer.name:
 #else
 x3270.printer.command:			lpr
-x3270.printer.assocCommandLine:		pr3287 -assoc %L% -command "%C%" %R% %P% %V% %O% "%H%"
-x3270.printer.luCommandLine:		pr3287 -command "%C%" %R% %P% %V% %O% "%L%@%H%"
+x3270.printer.assocCommandLine:		pr3287 -assoc %L% -command "%C%" %R% %P% %V% %S% %O% "%H%"
+x3270.printer.luCommandLine:		pr3287 -command "%C%" %R% %P% %V% %S% %O% "%L%@%H%"
 #endif
 #ifndef STANDALONE
 !
@@ -399,7 +398,9 @@ x3270.keymap.base: \
 	:<Key>dead_grave:	 	Compose() Key(grave)\n\
         :<Key>dead_circumflex:          Compose() Key(asciicircum)\n\
 	:<Key>dead_tilde:	        Compose() Key(asciitilde)\n\
-	:<Key>dead_diaeresis:	        Compose() Key(quotedbl)\n
+	:<Key>dead_diaeresis:	        Compose() Key(quotedbl)\n\
+	:<Key>Prior:			Scroll(Backward)\n\
+	:<Key>Next:			Scroll(Forward)\n
 !
 ! Base keymap for 3270 mode.  These mappings are added to the base keymap,
 ! but only when in 3270 mode.
@@ -863,13 +864,6 @@ x3270.oversizePopup*confirmButton.label:	Resize
 x3270.keypadPopup.title:			x3270 Keypad
 #endif
 #ifdef X3270_MENUS
-x3270.printTextPopup.title:			x3270 Screen Print
-x3270.printTextPopup.dialog.label:		Enter Print Command
-x3270.printTextPopup*confirmButton.label:	Print
-x3270.saveTextPopup.title:			x3270 Screen Save
-x3270.saveTextPopup.dialog.label:		Enter File Name
-x3270.saveTextPopup*confirmButton.label:	Save as Text
-x3270.saveTextPopup*confirm2Button.label:	Save as HTML
 x3270.printWindowPopup.title:			x3270 Window Print
 x3270.printWindowPopup.dialog.label:		Enter Print Command
 x3270.printWindowPopup*confirmButton.label:	Print
@@ -886,10 +880,16 @@ x3270.tracePopup.title:				x3270 Tracing
 x3270.tracePopup.dialog.label:			Enter Trace File Name
 x3270.tracePopup*confirmButton.label:		Trace
 x3270.tracePopup*confirm2Button.label:		No File
-x3270.screentracePopup.title:			x3270 Screen Image Tracing
-x3270.screentracePopup.dialog.label:		Enter File Name
-x3270.screentracePopup*confirmButton.label:	Continuously
-x3270.screentracePopup*confirm2Button.label:	Once
+x3270.screenTracePopup.title:			x3270 Screen Save
+x3270.screenTracePopup*continuously.label:	Continuously
+x3270.screenTracePopup*once.label:		Once
+x3270.screenTracePopup*file.label:		To File
+x3270.screenTracePopup*printer.label:		To Printer
+x3270.screenTracePopup*text.label:		Text
+x3270.screenTracePopup*html.label:		HTML
+x3270.screenTracePopup*rtf.label:		RichText
+x3270.screenTracePopup*fileName.label:		File Name
+x3270.screenTracePopup*printCommand.label:	Printer Command
 #endif
 #ifdef X3270_MENUS
 x3270.executeActionPopup.title:			x3270 Execute Action
@@ -938,8 +938,6 @@ x3270*abortScriptOption.label:			Abort Scripts/Macros/Strings
 x3270*disconnectOption.label:			Disconnect
 x3270*exitOption.label:				Exit x3270
 x3270*exitReallyOption.label:			Disconnect and Exit
-x3270*printTextOption.label:			Print Screen Text
-x3270*saveTextOption.label:			Save Screen Text in File
 x3270*printWindowOption.label:			Print Window Bitmap
 x3270*executeActionOption.label:		Execute an Action
 x3270*fileMenuButton.label:			File
@@ -958,6 +956,7 @@ x3270.ftPopup*append.label:			Append to file
 x3270.ftPopup*remap.label:			Remap ASCII Characters
 x3270.ftPopup*vm.label:				Host is VM/CMS
 x3270.ftPopup*tso.label:			Host is TSO
+x3270.ftPopup*cics.label:			Host is CICS
 x3270.ftPopup*confirmButton.label:		Transfer File
 x3270.ftPopup*file.label:			Record Format
 x3270.ftPopup*recfmDefault.label:		Default
@@ -1023,9 +1022,8 @@ x3270*monocaseOption.label:			Monocase
 x3270*cursorBlinkOption.label:			Blinking Cursor
 x3270*showTimingOption.label:			Show Timing
 x3270*cursorPosOption.label:			Track Cursor
-x3270*dsTraceOption.label:			Trace Data Stream
-x3270*eventTraceOption.label:			Trace Keyboard/Mouse Events
-x3270*screenTraceOption.label:			Save Screen(s) in File
+x3270*traceOption.label:			Trace Data and Events
+x3270*screenTraceOption.label:			Save Screen Contents
 x3270*scrollBarOption.label:			Scrollbar
 x3270*lineWrapOption.label:			Wraparound
 x3270*marginedPasteOption.label:		Paste with Left Margin
@@ -1094,6 +1092,7 @@ x3270.message.charMode:				NVT character mode
 x3270.message.lineMode:				NVT line mode
 x3270.message.dsMode:				3270 mode
 x3270.message.sscpMode:				SSCP-LU mode
+x3270.message.unboundMode:			unbound mode
 x3270.message.tn3270eOpts:			TN3270E options:
 x3270.message.tn3270eNoOpts:			No TN3270E options
 x3270.message.connectionPending:		Connection pending to:
@@ -1340,11 +1339,8 @@ x3270.connectPopup.width:			300
 x3270.fontPopup.width:				300
 x3270.keymapPopup.width:			300
 x3270.oversizePopup.width:			300
-x3270.printTextPopup.width:			300
-x3270.saveTextPopup.width:			300
 x3270.printWindowPopup.width:			300
 x3270.tracePopup.width:				300
-x3270.screentracePopup.width:			300
 x3270.executeActionPopup.width:			300
 x3270.saveOptionsPopup.width:			300
 x3270.passwordPopup.width:			300
@@ -1485,16 +1481,14 @@ x3270.fontPopup.translations: \
 	<Message>WM_PROTOCOLS:		PA-WMProtocols()
 x3270.keymapPopup.translations: \
 	<Message>WM_PROTOCOLS:		PA-WMProtocols()
-x3270.printTextPopup.translations: \
-	<Message>WM_PROTOCOLS:		PA-WMProtocols()
-x3270.saveTextPopup.translations: \
-	<Message>WM_PROTOCOLS:		PA-WMProtocols()
 x3270.printWindowPopup.translations: \
 	<Message>WM_PROTOCOLS:		PA-WMProtocols()
 x3270.tracePopup.translations: \
 	<Message>WM_PROTOCOLS:		PA-WMProtocols()
-x3270.screentracePopup.translations: \
+x3270.screenTracePopup.translations: \
 	<Message>WM_PROTOCOLS:		PA-WMProtocols()
+x3270.screenTracePopup*translations:	#override \n\
+	<Key>Return:			PA-confirm()
 x3270.executeActionPopup.translations: \
 	<Message>WM_PROTOCOLS:		PA-WMProtocols()
 x3270.saveOptionsPopup.translations: \
@@ -1538,6 +1532,11 @@ x3270.idlePopup*value.translations:	#override \n\
 	<Key>Return:			PA-dialog-next()\n\
 	<Key>Tab:			PA-dialog-next()\n\
 	<Btn1Down>:			PA-dialog-focus() select-start()\n\
+	Ctrl<Key>U:			select-all(DUMMY) delete-selection()
+#endif
+#ifdef X3270_TRACE
+x3270.screenTracePopup*value.translations:	#override \n\
+	<Key>Return:			PA-confirm()\n\
 	Ctrl<Key>U:			select-all(DUMMY) delete-selection()
 #endif
 x3270*value.translations:		#override \n\

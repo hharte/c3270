@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2009, Paul Mattes.
+ * Copyright (c) 1993-2009, 2013-2014 Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta, GA
  *  30332.
@@ -47,6 +47,7 @@
 
 #include "charsetc.h"
 #include "ctlrc.h"
+#include "unicodec.h"
 #include "ftc.h"
 #include "ft_cutc.h"
 #include "ft_dftc.h"
@@ -63,11 +64,7 @@
 #include "tablesc.h"
 #include "telnetc.h"
 #include "trace_dsc.h"
-#include "unicodec.h"
 #include "utilc.h"
-
-/* Externals: kybd.c */
-extern unsigned char aid;
 
 /* Globals */
 int             ROWS, COLS;
@@ -188,6 +185,9 @@ ctlr_reinit(unsigned cmask)
 							  maxROWS * maxCOLS));
 		cursor_addr = 0;
 		buffer_addr = 0;
+
+		ea_buf[-1].fa  = FA_PRINTABLE | FA_MODIFY;
+		aea_buf[-1].fa = FA_PRINTABLE | FA_MODIFY;
 	}
 }
 
@@ -260,14 +260,16 @@ set_rows_cols(int mn, int ovc, int ovr)
 			popup_an_error("Invalid %s %dx%d:\nNegative or zero",
 			    ResOversize, ovc, ovr);
 		else if (ovc * ovr >= 0x4000)
-			popup_an_error("Invalid %s %dx%d:\nToo big",
-			    ResOversize, ovc, ovr);
+			popup_an_error("Invalid %s %dx%d:\nExceeds protocol "
+				"limit", ResOversize, ovc, ovr);
 		else if (ovc > 0 && ovc < maxCOLS)
-			popup_an_error("Invalid %s cols (%d):\nLess than model %d cols (%d)",
-			    ResOversize, ovc, model_num, maxCOLS);
+			popup_an_error("Invalid %s cols (%d):\nLess than "
+				"model %d cols (%d)", ResOversize, ovc,
+				model_num, maxCOLS);
 		else if (ovr > 0 && ovr < maxROWS)
-			popup_an_error("Invalid %s rows (%d):\nLess than model %d rows (%d)",
-			    ResOversize, ovr, model_num, maxROWS);
+			popup_an_error("Invalid %s rows (%d):\nLess than "
+				"model %d rows (%d)", ResOversize, ovr,
+				model_num, maxROWS);
 		else {
 			ov_cols = maxCOLS = ovc;
 			ov_rows = maxROWS = ovr;
@@ -330,13 +332,6 @@ ctlr_connect(Boolean ignored _is_unused)
 	ticking_stop();
 	status_untiming();
 
-	if (ever_3270) {
-		ea_buf[-1].fa = FA_PRINTABLE | FA_MODIFY;
-		aea_buf[-1].fa = FA_PRINTABLE | FA_MODIFY;
-	} else {
-		ea_buf[-1].fa = FA_PRINTABLE | FA_PROTECT;
-		aea_buf[-1].fa = FA_PRINTABLE | FA_PROTECT;
-	}
 	if (!IN_3270 || (IN_SSCP && (kybdlock & KL_OIA_TWAIT))) {
 		kybdlock_clr(KL_OIA_TWAIT, "ctlr_connect");
 		status_reset();
@@ -367,20 +362,31 @@ ctlr_connect(Boolean ignored _is_unused)
  * Returns -1 if the screen isn't formatted.
  */
 int
-find_field_attribute(int baddr)
+find_field_attribute_ea(int baddr, struct ea *ea)
 {
 	int sbaddr;
 
-	if (!formatted)
-		return -1;
-
 	sbaddr = baddr;    
 	do {   
-		if (ea_buf[baddr].fa)
+		if (ea[baddr].fa) {
 			return baddr;
+		}
 		DEC_BA(baddr);
 	} while (baddr != sbaddr);
 	return -1;
+}
+
+/*
+ * Find the buffer address of the field attribute for a given buffer address.
+ * Returns -1 if the screen isn't formatted.
+ */
+int
+find_field_attribute(int baddr)
+{
+	if (!formatted) {
+		return -1;
+	}
+	return find_field_attribute_ea(baddr, ea_buf);
 }
 
 /*
@@ -1988,7 +1994,9 @@ ctlr_write_sscp_lu(unsigned char buf[], int buflen)
 	unsigned char *cp = buf;
 	int s_row;
 	unsigned char c;
+#if defined(X3270_TRACE) /*[*/
 	int baddr;
+#endif /*]*/
 	int text = False;
 
 	/*
@@ -2048,8 +2056,10 @@ ctlr_write_sscp_lu(unsigned char buf[], int buflen)
 			    rcba(buffer_addr));
 			break;
 		case ORDER_SBA:
+#if defined(X3270_TRACE) /*[*/
 			baddr = DECODE_BADDR(*(cp+1), *(cp+2));
 			trace_ds(" SBA%s [ignored]\n", rcba(baddr));
+#endif /*]*/
 			cp += 2;
 			i += 2;
 			break;
@@ -2415,6 +2425,9 @@ ctlr_any_data(void)
 {
 	register int i;
 
+	if (ea_buf == NULL)
+		return False;
+
 	for (i = 0; i < ROWS*COLS; i++) {
 		if (!IsBlank(ea_buf[i].cc))
 			return True;
@@ -2433,7 +2446,7 @@ ctlr_clear(Boolean can_snap)
 	if (ctlr_any_data()) {
 #if defined(X3270_TRACE) /*[*/
 		if (can_snap && !trace_skipping && toggled(SCREEN_TRACE))
-			trace_screen();
+			trace_screen(True);
 #endif /*]*/
 		scroll_save(maxROWS, ever_3270 ? False : True);
 	}
@@ -2488,7 +2501,7 @@ ctlr_add(int baddr, unsigned char c, unsigned char cs)
 		if (trace_primed && !IsBlank(oc)) {
 #if defined(X3270_TRACE) /*[*/
 			if (toggled(SCREEN_TRACE))
-				trace_screen();
+				trace_screen(False);
 #endif /*]*/
 			scroll_save(maxROWS, False);
 			trace_primed = False;
@@ -2810,9 +2823,15 @@ ctlr_shrink(void)
  * Takes line-wrapping into account, which probably isn't done all that well.
  */
 enum dbcs_state
+ctlr_dbcs_state_ea(int baddr, struct ea *ea)
+{
+	return dbcs? ea[baddr].db: DBCS_NONE;
+}
+
+enum dbcs_state
 ctlr_dbcs_state(int baddr)
 {
-	return dbcs? ea_buf[baddr].db: DBCS_NONE;
+	return ctlr_dbcs_state_ea(baddr, ea_buf);
 }
 #endif /*]*/
 
@@ -2826,7 +2845,7 @@ ctlr_dbcs_state(int baddr)
 static struct timeval t_start;
 static Boolean ticking = False;
 static Boolean mticking = False;
-static unsigned long tick_id;
+static ioid_t tick_id;
 static struct timeval t_want;
 
 /* Return the difference in milliseconds between two timevals. */
@@ -2838,7 +2857,7 @@ delta_msec(struct timeval *t1, struct timeval *t0)
 }
 
 static void
-keep_ticking(void)
+keep_ticking(ioid_t id _is_unused)
 {
 	struct timeval t1;
 	long msec;
@@ -2902,4 +2921,41 @@ toggle_showTiming(struct toggle *t _is_unused, enum toggle_type tt _is_unused)
 void
 toggle_nop(struct toggle *t _is_unused, enum toggle_type tt _is_unused)
 {
+}
+
+/*
+ * Queries.
+ */
+const char *
+ctlr_query_cur_size(void)
+{
+	static char result[32];
+
+	snprintf(result, sizeof(result), "%u %u", ROWS, COLS);
+	return result;
+}
+
+const char *
+ctlr_query_cursor(void)
+{
+	static char result[32];
+
+	snprintf(result, sizeof(result), "%u %u",
+		cursor_addr / COLS, cursor_addr % COLS);
+	return result;
+}
+
+const char *
+ctlr_query_formatted(void)
+{
+	return formatted? "formatted": "unformatted";
+}
+
+const char *
+ctlr_query_max_size(void)
+{
+	static char result[32];
+
+	snprintf(result, sizeof(result), "%u %u", maxROWS, maxCOLS);
+	return result;
 }

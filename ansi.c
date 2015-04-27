@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2009, Paul Mattes.
+ * Copyright (c) 1993-2009, 2013 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -42,10 +42,12 @@
 #include "ctlr.h"
 #include "3270ds.h"
 
+#include "actionsc.h"
 #include "ansic.h"
 #include "charsetc.h"
 #include "ctlrc.h"
 #include "hostc.h"
+#include "macrosc.h"
 #include "screenc.h"
 #include "scrollc.h"
 #include "tablesc.h"
@@ -1075,31 +1077,38 @@ ansi_printing(int ig1 _is_unused, int ig2 _is_unused)
 			ctlr_add(cursor_addr, (unsigned char)(ansi_ch - 0x5f),
 			    CS_LINEDRAW);
 		else if (ebc_ch & ~0xff)
-			ctlr_add(cursor_addr, unicode_to_ebcdic('?'), CS_BASE);
+			ctlr_add(cursor_addr,
+				(unsigned char)unicode_to_ebcdic('?'),
+				CS_BASE);
 		else
-			ctlr_add(cursor_addr, ebc_ch, CS_BASE);
+			ctlr_add(cursor_addr, (unsigned char)ebc_ch, CS_BASE);
 		break;
 	    case CSD_UK:	/* UK "A" */
 		if (ansi_ch == '#')
 			ctlr_add(cursor_addr, 0x1e, CS_LINEDRAW);
 		else if (ebc_ch & ~0xff)
-			ctlr_add(cursor_addr, unicode_to_ebcdic('?'), CS_BASE);
+			ctlr_add(cursor_addr,
+				(unsigned char)unicode_to_ebcdic('?'),
+				CS_BASE);
 		else
-			ctlr_add(cursor_addr, ebc_ch, CS_BASE);
+			ctlr_add(cursor_addr, (unsigned char)ebc_ch, CS_BASE);
 		break;
 	    case CSD_US:	/* US "B" */
 #if !defined(X3270_DBCS) /*[*/
 		if (ebc_ch & ~0xff)
-			ctlr_add(cursor_addr, unicode_to_ebcdic('?'), CS_BASE);
+			ctlr_add(cursor_addr,
+				(unsigned char)unicode_to_ebcdic('?'),
+				CS_BASE);
 		else
-			ctlr_add(cursor_addr, ebc_ch, CS_BASE);
+			ctlr_add(cursor_addr, (unsigned char)ebc_ch, CS_BASE);
 #else /*][*/
 		if (ebc_ch & ~0xff) {
 
 		    	/* Add a DBCS character to the buffer. */
 		    	if (!dbcs) {
 				/* Not currently using a DBCS character set. */
-				ctlr_add(cursor_addr, unicode_to_ebcdic('?'),
+				ctlr_add(cursor_addr,
+					(unsigned char)unicode_to_ebcdic('?'),
 					CS_BASE);
 				break;
 			}
@@ -1155,7 +1164,7 @@ ansi_printing(int ig1 _is_unused, int ig2 _is_unused)
 		}
 
 		/* Add an SBCS character to the buffer. */
-		ctlr_add(cursor_addr, ebc_ch, CS_BASE);
+		ctlr_add(cursor_addr, (unsigned char)ebc_ch, CS_BASE);
 #endif /*]*/
 		break;
 	}
@@ -1364,7 +1373,7 @@ ansi_status_report(int nn, int ig2 _is_unused)
 		net_sends("\033[0n");
 		break;
 	    case 6:
-		(void) sprintf(cpr, "\033[%d;%dR",
+		(void) snprintf(cpr, sizeof(cpr), "\033[%d;%dR",
 		    (cursor_addr/COLS) + 1, (cursor_addr%COLS) + 1);
 		net_sends(cpr);
 		break;
@@ -1747,6 +1756,9 @@ ansi_process(unsigned int c)
 	    	pe = 0;
 	else if (pe < PE_MAX)
 	    	ped[pe++] = c;
+
+	/* Let a script go. */
+	sms_host_output();
 }
 
 void
@@ -1819,7 +1831,7 @@ ansi_send_pf(int nn)
 
 	if (nn < 1 || (unsigned)nn > sizeof(code)/sizeof(code[0]))
 		return;
-	(void) sprintf(fn_buf, "\033[%d~", code[nn-1]);
+	(void) snprintf(fn_buf, sizeof(fn_buf), "\033[%d~", code[nn-1]);
 	net_sends(fn_buf);
 }
 
@@ -1831,7 +1843,7 @@ ansi_send_pa(int nn)
 
 	if (nn < 1 || nn > 4)
 		return;
-	(void) sprintf(fn_buf, "\033O%c", code[nn-1]);
+	(void) snprintf(fn_buf, sizeof(fn_buf), "\033O%c", code[nn-1]);
 	net_sends(fn_buf);
 }
 
@@ -1881,7 +1893,7 @@ emit_cup(int baddr)
 		char cup_buf[11];
 		int sl;
 
-		sl = sprintf(cup_buf, "\033[%d;%dH",
+		sl = snprintf(cup_buf, sizeof(cup_buf), "\033[%d;%dH",
 			(baddr / COLS) + 1,
 			(baddr % COLS) + 1);
 		space3270out(sl);
@@ -1909,7 +1921,7 @@ ansi_dump_spaces(int spaces, int baddr)
 		 * It is possible to optimize this further with clever
 		 * CU[UDFB] sequences, but not (yet) worth the effort.
 		 */
-		sl = sprintf(cup_buf, "\033[%d;%dH",
+		sl = snprintf(cup_buf, sizeof(cup_buf), "\033[%d;%dH",
 			(baddr / COLS) + 1,
 			(baddr % COLS) + 1);
 		if (sl < spaces) {

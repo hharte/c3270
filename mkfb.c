@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2009, Paul Mattes.
+ * Copyright (c) 1995-2009, 2013 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,11 +32,15 @@
  */
 
 #include "conf.h"
+#if defined(_WIN32) /*[*/
+# include "wincmn.h"
+#endif /*]*/
 
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <errno.h>
 
 #define BUFSZ	1024		/* input line buffer size */
 #define ARRSZ	8192		/* output array size */
@@ -144,7 +148,7 @@ unsigned long is_defined =
 	0
 #endif
 |
-#if defined(_WIN32)
+#if defined(FOR_WIN32) || defined(_WIN32)
 	MODE__WIN32
 #else
 	0
@@ -161,6 +165,41 @@ usage(void)
 {
 	fprintf(stderr, "usage: %s [infile [outfile]]\n", me);
 	exit(1);
+}
+
+/*
+ * Wrapper around Windows' brain-dead tmpfile().
+ */
+static FILE *
+mkfb_tmpfile(void)
+{
+	FILE *f;
+#if defined(_WIN32) /*[*/
+	char *n;
+#endif /*]*/
+
+#if !defined(_WIN32) /*[*/
+	f = tmpfile();
+	if (f == NULL) {
+		perror("tmpfile");
+		exit(1);
+	}
+#else /*][*/
+	n = _tempnam(NULL, "mkfb");
+	if (n == NULL) {
+		fprintf(stderr, "_tempnam failed.\n");
+		exit(1);
+	}
+	f = fopen(n, "w+b");
+	if (f == NULL) {
+		fprintf(stderr, "_tempnam open(\"%s\") failed: %s\n",
+			n, strerror(errno));
+		exit(1);
+	}
+	free(n);
+#endif /*]*/
+
+	return f;
 }
 
 int
@@ -209,11 +248,7 @@ main(int argc, char *argv[])
 	is_undefined = MODE_COLOR | (~is_defined & MODEMASK);
 
 	/* Do #ifdef, comment and whitespace processing first. */
-	u = tmpfile();
-	if (u == NULL) {
-		perror("tmpfile");
-		exit(1);
-	}
+	u = mkfb_tmpfile();
 
 	while (fgets(buf, BUFSZ, stdin) != (char *)NULL) {
 		char *s = buf;
@@ -348,29 +383,18 @@ main(int argc, char *argv[])
 
 	/* Re-scan, emitting code this time. */
 	rewind(u);
-	t = tmpfile();
-	if (t == NULL) {
-		perror("tmpfile");
-		exit(1);
-	}
+	t = mkfb_tmpfile();
 	if (!cmode) {
-		tc = tmpfile();
-		if (tc == NULL) {
-			perror("tmpfile");
-			exit(1);
-		}
-		tm = tmpfile();
-		if (tm == NULL) {
-			perror("tmpfile");
-			exit(1);
-		}
+		tc = mkfb_tmpfile();
+		tm = mkfb_tmpfile();
 	}
 
 	/* Emit the initial boilerplate. */
 	fprintf(t, "/* This file was created automatically from %s by mkfb. */\n\n",
 	    filename);
+	fprintf(t, "#include \"globals.h\"\n");
+	fprintf(t, "#include \"fallbacksc.h\"\n");
 	if (cmode) {
-		fprintf(t, "#include \"globals.h\"\n");
 		fprintf(t, "static unsigned char fsd[] = {\n");
 	} else {
 		fprintf(t, "unsigned char common_fallbacks[] = {\n");

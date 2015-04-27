@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2012, Paul Mattes.
+ * Copyright (c) 1993-2013, Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta,
  *  GA 30332.
@@ -45,8 +45,8 @@
 #include "xioc.h"
 
 /* Statics. */
-static unsigned long ns_read_id;
-static unsigned long ns_exception_id;
+static ioid_t ns_read_id;
+static ioid_t ns_exception_id;
 static Boolean reading = False;
 static Boolean excepting = False;
 
@@ -119,7 +119,12 @@ x3270_exit(int n)
 	/* Handle unintentional recursion. */
 	if (already_exiting)
 		return;
+
 	already_exiting = True;
+
+	/* Flush any pending output (mostly for Windows). */
+	fflush(stdout);
+	fflush(stderr);
 
 	/* Turn off toggle-related activity. */
 	shutdown_toggles();
@@ -141,7 +146,16 @@ x3270_exit(int n)
 
 	}
 
+#if !defined(_WIN32) /*[*/
 	exit(n);
+#else /*][*/
+	/*
+	 * On Windows, call ExitProcess() instead of the POSIXish exit().
+	 * Apparently calling exit() in a ConsoleCtrlHandler is a bad thing on
+	 * XP, and causes a hang.
+	 */
+	ExitProcess(n);
+#endif /*]*/
 }
 
 void

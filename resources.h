@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2013, Paul Mattes.
+ * Copyright (c) 1995-2014, Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 
 /* Resources. */
 #define ResAcs			"acs"
+#define ResAcceptHostname	"acceptHostname"
 #define ResActiveIcon		"activeIcon"
 #define ResAdVersion		"adVersion"
 #define ResAidWait		"aidWait"
@@ -93,6 +94,7 @@
 #define ResEventTrace		"eventTrace"
 #define ResExtended		"extended"
 #define ResFixedSize		"fixedSize"
+#define ResFtCodePage		"ftCodePage"
 #define ResHighlightBold	"highlightBold"
 #define ResHostColorFor		"hostColorFor"
 #define ResHostColorForDefault ResHostColorFor "Default"
@@ -138,6 +140,7 @@
 #define ResMono			"mono"
 #define ResMonoCase		"monoCase"
 #define ResMouse		"mouse"
+#define ResNewEnviron		"newEnviron"
 #define ResNoOther		"noOther"
 #define ResNoPrompt		"noPrompt"
 #define ResNormalColor		"normalColor"
@@ -182,6 +185,8 @@
 #define ResSuppress		"suppress"
 #define ResTermName		"termName"
 #define ResTitle		"title"
+#define ResTls			"tls"
+#define ResTrace		"trace"
 #define ResTraceDir		"traceDir"
 #define ResTraceFile		"traceFile"
 #define ResTraceFileSize	"traceFileSize"
@@ -192,6 +197,7 @@
 #define ResUnlockDelayMs	"unlockDelayMs"
 #define ResUseCursorColor	"useCursorColor"
 #define ResUser			"user"
+#define ResUtf8			"utf8"
 #define ResV			"v"
 #define ResVerifyHostCert	"verifyHostCert"
 #define ResVisibleControl	"visibleControl"
@@ -202,6 +208,7 @@
 #define ResWerase		"werase"
 
 /* Dotted resource names. */
+#define DotAcceptHostname	"." ResAcceptHostname
 #define DotActiveIcon		"." ResActiveIcon
 #define DotAplMode		"." ResAplMode
 #define DotCaDir		"." ResCaDir
@@ -224,6 +231,7 @@
 #define DotKeymap		"." ResKeymap
 #define DotKeypadOn		"." ResKeypadOn
 #define DotKeyPasswd		"." ResKeyPasswd
+#define DotLoginMacro		"." ResLoginMacro
 #define DotM3279		"." ResM3279
 #define DotModel		"." ResModel
 #define DotMono			"." ResMono
@@ -238,10 +246,12 @@
 #define DotScripted		"." ResScripted
 #define DotScriptPort		"." ResScriptPort
 #define DotScrollBar		"." ResScrollBar
+#define DotSecure		"." ResSecure
 #define DotSelfSignedOk		"." ResSelfSignedOk
 #define DotSocket		"." ResSocket
 #define DotTermName		"." ResTermName
 #define DotTitle		"." ResTitle
+#define DotTrace		"." ResTrace
 #define DotTraceFile		"." ResTraceFile
 #define DotTraceFileSize	"." ResTraceFileSize
 #define DotUser			"." ResUser
@@ -249,6 +259,7 @@
 #define DotVerifyHostCert	"." ResVerifyHostCert
 
 /* Resource classes. */
+#define ClsAcceptHostname	"AcceptHostname"
 #define ClsActiveIcon		"ActiveIcon"
 #define ClsAdVersion		"AdVersion"
 #define ClsAidWait		"AidWait"
@@ -293,7 +304,6 @@
 #define ClsEventTrace		"EventTrace"
 #define ClsExtended		"Extended"
 #define ClsFixedSize		"FixedSize"
-#define ClsFtCommand		"FtCommand"
 #define ClsHighlightBold	"HighlightBold"
 #define ClsHostname		"Hostname"
 #define ClsHostsFile		"HostsFile"
@@ -320,6 +330,7 @@
 #define ClsLineWrap		"LineWrap"
 #define ClsLnext		"Lnext"
 #define ClsLockedCursor		"LockedCursor"
+#define ClsLoginMacro		"LoginMacro"
 #define ClsM3279		"M3279"
 #define ClsMacros		"Macros"
 #define ClsMarginedPaste	"MarginedPaste"
@@ -330,6 +341,7 @@
 #define ClsModifiedSelColor	"ModifiedSelColor"
 #define ClsMono			"Mono"
 #define ClsMonoCase		"MonoCase"
+#define ClsNewEnviron		"NewEnviron"
 #define ClsNoOther		"NoOther"
 #define ClsNormalColor		"NormalColor"
 #define ClsNormalCursor		"NormalCursor"
@@ -362,6 +374,8 @@
 #define ClsSuppressHost		"SuppressHost"
 #define ClsSuppressFontMenu	"SuppressFontMenu"
 #define ClsTermName		"TermName"
+#define ClsTls			"Tls"
+#define ClsTrace		"Trace"
 #define ClsTraceDir		"TraceDir"
 #define ClsTraceFile		"TraceFile"
 #define ClsTraceFileSize	"TraceFileSize"
@@ -380,6 +394,7 @@
 #define ClsWerase		"Werase"
 
 /* Options. */
+#define OptAcceptHostname	"-accepthostname"
 #define OptActiveIcon		"-activeicon"
 #define OptAllBold		"-allbold"
 #define OptAltScreen		"-altscreen"
@@ -397,7 +412,7 @@
 #define OptDefaultFgBg		"-defaultfgbg"
 #define OptDefScreen		"-defscreen"
 #define OptDevName		"-devname"
-#define OptDsTrace		"-trace"
+#define OptTrace		"-trace"
 #define OptEmulatorFont		"-efont"
 #define OptExtended		"-extended"
 #define OptHostsFile		"-hostsfile"
@@ -412,6 +427,7 @@
 #define OptKeyPasswd		"-keypasswd"
 #define OptLocalCp		"-localcp"
 #define OptLocalProcess		"-e"
+#define OptLoginMacro		"-loginmacro"
 #define OptM3279		"-color"
 #define OptModel		"-model"
 #define OptMono			"-mono"
@@ -433,6 +449,7 @@
 #define OptScrollBar		"-sb"
 #define OptSet			"-set"
 #define OptSocket		"-socket"
+#define OptSyncPort		"-syncport"
 #define OptAutoShortcut		"-S"
 #define OptNoAutoShortcut	"+S"
 #define OptTermName		"-tn"
@@ -440,6 +457,7 @@
 #define OptTraceFile		"-tracefile"
 #define OptTraceFileSize	"-tracefilesize"
 #define OptUser			"-user"
+#define OptUtf8			"-utf8"
 #define OptV			"-v"
 #define OptVerifyHostCert	"-verifycert"
 #define OptVersion		"--version"
@@ -466,7 +484,11 @@
 #define ResPfWidth		"pfWidth"
 #define ResPrintTextCommand	"printTextCommand"
 #define ResPrintTextFont	"printTextFont"
+#define ResPrintTextHorizontalMargin "printTextHorizontalMargin"
+#define ResPrintTextOrientation	"printTextOrientation"
+#define ResPrintTextScreensPerPage "printTextScreensPerPage"
 #define ResPrintTextSize	"printTextSize"
+#define ResPrintTextVerticalMargin "printTextVerticalMargin"
 #define ResPrintWindowCommand	"printWindowCommand"
 #define ResTraceCommand		"traceCommand"
 #define ResUser			"user"

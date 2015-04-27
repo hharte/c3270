@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2012, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,18 +32,19 @@
 
 #include "globals.h"
 
-#if defined(X3270_MENUS) /*[*/
+#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 #include <X11/StringDefs.h>
 #include <X11/Xaw/Dialog.h>
 #endif /*]*/
 
 #if !defined(_WIN32) /*[*/
 #include <sys/wait.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #endif /*]*/
 #include <errno.h>
 #include <fcntl.h>
@@ -56,8 +57,10 @@
 #include "resources.h"
 
 #include "actionsc.h"
+#include "charsetc.h"
 #include "childc.h"
 #include "ctlrc.h"
+#include "unicodec.h"
 #include "ftc.h"
 #include "hostc.h"
 #include "idlec.h"
@@ -74,20 +77,11 @@
 #include "tablesc.h"
 #include "telnetc.h"
 #include "trace_dsc.h"
-#include "unicodec.h"
 #include "utf8c.h"
 #include "utilc.h"
 #include "xioc.h"
 
-#if defined(_WIN32) /*[*/
-#include "windows.h"
-#include <ws2tcpip.h>
 #include "w3miscc.h"
-#endif /*]*/
-
-#if defined(_MSC_VER) /*[*/
-#include "Msc/deprecated.h"
-#endif /*]*/
 
 #define ANSI_SAVE_SIZE	4096
 
@@ -98,9 +92,6 @@
 #endif /*[*/
 
 #define MSC_BUF	1024
-
-/* Externals */
-extern int      linemode;
 
 /* Globals */
 struct macro_def *macro_defs = (struct macro_def *)NULL;
@@ -160,19 +151,19 @@ typedef struct sms {
 #if defined(_WIN32) /*[*/
 	HANDLE	inhandle;
 	HANDLE	child_handle;
-	unsigned long exit_id;
-	unsigned long listen_id;
+	ioid_t exit_id;
+	ioid_t listen_id;
 #endif /*]*/
 	int	pid;
-	unsigned long expect_id;
-	unsigned long wait_id;
+	ioid_t expect_id;
+	ioid_t wait_id;
 } sms_t;
 #define SN	((sms_t *)NULL)
 static sms_t *sms = SN;
 static int sms_depth = 0;
 #if defined(X3270_SCRIPT) /*[*/
 static int socketfd = -1;
-static unsigned long socket_id = 0L;
+static ioid_t socket_id = NULL_IOID;
 # if defined(_WIN32) /*[*/
 static HANDLE socket_event = NULL;
 # endif /*]*/
@@ -205,7 +196,7 @@ static const char *sms_state_name[] = {
 #if defined(X3270_MENUS) /*[*/
 static struct macro_def *macro_last = (struct macro_def *) NULL;
 #endif /*]*/
-static unsigned long stdin_id = 0L;
+static ioid_t stdin_id = NULL_IOID;
 static unsigned char *ansi_save_buf;
 static int      ansi_save_cnt = 0;
 static int      ansi_save_ix = 0;
@@ -231,16 +222,16 @@ int peer_errno;
 static void cleanup_socket(Boolean b);
 #endif /*]*/
 static void script_prompt(Boolean success);
-static void script_input(void);
+static void script_input(unsigned long fd, ioid_t id);
 static void sms_pop(Boolean can_exit);
 #if defined(X3270_SCRIPT) /*[*/
-static void socket_connection(void);
+static void socket_connection(unsigned long fd, ioid_t id);
 # if defined(_WIN32) /*[*/
-static void child_socket_connection(void);
-static void child_exited(void);
+static void child_socket_connection(unsigned long fd, ioid_t id);
+static void child_exited(unsigned long fd, ioid_t id);
 # endif /*]*/
 #endif /*]*/
-static void wait_timed_out(void);
+static void wait_timed_out(ioid_t id);
 static void read_from_file(void);
 static sms_t *sms_redirect_to(void);
 
@@ -264,8 +255,8 @@ static int plugin_pid = 0;		/* process ID if running, or 0 */
 static int plugin_outpipe = -1;		/* from emulator, to plugin */
 static int plugin_inpipe = -1;		/* from plugin, to emulator */
 static Bool plugin_started = False;	/* True after INIT ack'ed */
-static unsigned long plugin_input_id = 0L;	/* input event */
-static unsigned long plugin_timeout_id = 0L;	/* timeout event */
+static ioid_t plugin_input_id = NULL_IOID;	/* input event */
+static ioid_t plugin_timeout_id = NULL_IOID;	/* timeout event */
 #define PRB_MAX	1024			/* maximum reply size */
 static char plugin_buf[PRB_MAX];	/* reply buffer */
 static int prb_cnt = 0;			/* pending reply size */
@@ -285,6 +276,44 @@ static Boolean plugin_start_failed = False;
 static char plugin_start_error[PRB_MAX];
 static void plugin_start(char *command, char *argv[], Boolean complain);
 static void no_plugin(void);
+#endif /*]*/
+
+#if defined(X3270_SCRIPT) && defined(X3270_TRACE) /*[*/
+static void
+trace_script_output(const char *fmt, ...)
+{
+	va_list args;
+	char msgbuf[4096];
+	char *s;
+	char *m = msgbuf;
+	char c;
+
+	if (!toggled(TRACING)) {
+		return;
+	}
+
+	va_start(args, fmt);
+	vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
+	va_end(args);
+
+	s = msgbuf;
+	while ((c = *s++)) {
+		if (c == '\n') {
+			trace_dsn("Output for %s[%d]: '%.*s'\n",
+				ST_NAME, sms_depth,
+				(int)((s - 1) - m),
+				m);
+			m = s;
+			continue;
+		}
+	}
+}
+#else /*][*/
+# if defined(__GNUC__) /*[*/
+#  define trace_script_output(format, args...)
+# else /*][*/
+#  define trace_script_output 0 &&
+# endif /*]*/
 #endif /*]*/
 
 #if defined(X3270_SCRIPT) && defined(X3270_PLUGIN) /*[*/
@@ -419,7 +448,7 @@ macros_init(void)
 	if (ns < 0) {
 		char buf[256];
 
-		(void) sprintf(buf, "Error in macro %d", ix);
+		(void) snprintf(buf, sizeof(buf), "Error in macro %d", ix);
 		Warning(buf);
 	}
 }
@@ -460,7 +489,7 @@ script_disable(void)
 	if (stdin_id != 0) {
 		trace_dsn("Disabling input for %s[%d]\n", ST_NAME, sms_depth);
 		RemoveInput(stdin_id);
-		stdin_id = 0L;
+		stdin_id = NULL_IOID;
 	}
 }
 
@@ -485,8 +514,8 @@ new_sms(enum sms_type type)
 	s->child_handle = INVALID_HANDLE_VALUE;
 #endif /*]*/
 	s->pid = -1;
-	s->expect_id = 0L;
-	s->wait_id = 0L;
+	s->expect_id = NULL_IOID;
+	s->wait_id = NULL_IOID;
 	s->output_wait_needed = False;
 	s->executing = False;
 	s->accumulated = False;
@@ -592,9 +621,9 @@ sms_pop(Boolean can_exit)
 	}
 
 	/* Cancel any pending timeouts. */
-	if (sms->expect_id != 0L)
+	if (sms->expect_id != NULL_IOID)
 		RemoveTimeOut(sms->expect_id);
-	if (sms->wait_id != 0L)
+	if (sms->wait_id != NULL_IOID)
 		RemoveTimeOut(sms->wait_id);
 
 	/*
@@ -693,6 +722,11 @@ peer_script_init(void)
 		struct sockaddr_in sin;
 		int on = 1;
 
+		if (appres.script_port > 0xffff) {
+			popup_an_error("Script port value %d >%d, ignoring",
+				appres.script_port, 0xffff);
+			return;
+		}
 #if !defined(_WIN32) /*[*/
 		if (appres.socket)
 		    	xs_warning("-scriptport overrides -socket");
@@ -788,7 +822,8 @@ peer_script_init(void)
 		}
 		(void) memset(&ssun, '\0', sizeof(ssun));
 		ssun.sun_family = AF_UNIX;
-		(void) sprintf(ssun.sun_path, "/tmp/x3sck.%u", getpid());
+		(void) snprintf(ssun.sun_path, sizeof(ssun.sun_path),
+			"/tmp/x3sck.%u", getpid());
 		(void) unlink(ssun.sun_path);
 		if (bind(socketfd, (struct sockaddr *)&ssun, sizeof(ssun))
 				< 0) {
@@ -856,9 +891,9 @@ peer_script_init(void)
 #if defined(X3270_SCRIPT) /*[*/
 /* Accept a new socket connection. */
 static void
-socket_connection(void)
+socket_connection(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
-	int fd;
+	int accept_fd;
 	sms_t *s;
 
 	/* Accept the connection. */
@@ -871,7 +906,7 @@ socket_connection(void)
 
 		(void) memset(&sin, '\0', sizeof(sin));
 		sin.sin_family = AF_INET;
-		fd = accept(socketfd, (struct sockaddr *)&sin, &len);
+		accept_fd = accept(socketfd, (struct sockaddr *)&sin, &len);
 	}
 #if !defined(_WIN32) /*[*/
 	else {
@@ -880,11 +915,11 @@ socket_connection(void)
 
 		(void) memset(&ssun, '\0', sizeof(ssun));
 		ssun.sun_family = AF_UNIX;
-		fd = accept(socketfd, (struct sockaddr *)&ssun, &len);
+		accept_fd = accept(socketfd, (struct sockaddr *)&ssun, &len);
 	}
 #endif /*]*/
 
-	if (fd < 0) {
+	if (accept_fd < 0) {
 		popup_an_errno(errno, "socket accept");
 		return;
 	}
@@ -895,9 +930,9 @@ socket_connection(void)
 	s = sms;
 	s->is_transient = True;
 	s->is_external = True;
-	s->infd = fd;
+	s->infd = accept_fd;
 #if !defined(_WIN32) /*[*/
-	s->outfile = fdopen(dup(fd), "w");
+	s->outfile = fdopen(dup(accept_fd), "w");
 #endif /*]*/
 #if defined(_WIN32) /*[*/
 	s->inhandle = CreateEvent(NULL, FALSE, FALSE, NULL);
@@ -915,15 +950,15 @@ socket_connection(void)
 
 	/* Don't accept any more connections. */
 	RemoveInput(socket_id);
-	socket_id = 0L;
+	socket_id = NULL_IOID;
 }
 
 # if defined(_WIN32) /*[*/
 /* Accept a new socket connection from a child process. */
 static void
-child_socket_connection(void)
+child_socket_connection(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
-	int fd;
+	int accept_fd;
 	sms_t *old_sms;
 	sms_t *s;
 	struct sockaddr_in sin;
@@ -932,9 +967,9 @@ child_socket_connection(void)
 	/* Accept the connection. */
 	(void) memset(&sin, '\0', sizeof(sin));
 	sin.sin_family = AF_INET;
-	fd = accept(sms->infd, (struct sockaddr *)&sin, &len);
+	accept_fd = accept(sms->infd, (struct sockaddr *)&sin, &len);
 
-	if (fd < 0) {
+	if (accept_fd < 0) {
 		popup_an_error("socket accept: %s",
 			win32_strerror(GetLastError()));
 		return;
@@ -946,7 +981,7 @@ child_socket_connection(void)
 	(void) sms_push(ST_PEER);
 	s = sms;
 	s->is_transient = True;
-	s->infd = fd;
+	s->infd = accept_fd;
 	s->inhandle = CreateEvent(NULL, FALSE, FALSE, NULL);
 	if (s->inhandle == NULL) {
 	    	fprintf(stderr, "Can't create socket handle\n");
@@ -961,7 +996,7 @@ child_socket_connection(void)
 
 	/* Don't accept any more connections on the global listen socket. */
 	RemoveInput(old_sms->listen_id);
-	old_sms->listen_id = 0L;
+	old_sms->listen_id = NULL_IOID;
 }
 #endif /*]*/
 
@@ -972,7 +1007,7 @@ cleanup_socket(Boolean b _is_unused)
 #if !defined(_WIN32) /*[*/
 	char buf[1024];
 
-	(void) sprintf(buf, "/tmp/x3sck.%u", getpid());
+	(void) snprintf(buf, sizeof(buf), "/tmp/x3sck.%u", getpid());
 	(void) unlink(buf);
 #endif /*]*/
 }
@@ -981,7 +1016,7 @@ cleanup_socket(Boolean b _is_unused)
 #if defined(_WIN32) /*[*/
 /* Process an event on a child script handle (presumably a process exit). */
 static void
-child_exited(void)
+child_exited(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
     	sms_t *s;
 	DWORD status;
@@ -998,7 +1033,7 @@ child_exited(void)
 			    	CloseHandle(s->child_handle);
 				s->child_handle = INVALID_HANDLE_VALUE;
 				RemoveInput(s->exit_id);
-				s->exit_id = 0;
+				s->exit_id = NULL_IOID;
 				if (s == sms) {
 				    	sms_pop(False);
 					sms_continue();
@@ -1048,14 +1083,6 @@ execute_command(enum iaction cause, char *s, char **np)
 		/*5*/ "Syntax error: \")\" expected"
 	};
 #define fail(n) { failreason = n; goto failure; }
-#define free_params() { \
-	if (cause == IA_MACRO ||   cause == IA_KEYMAP || \
-	    cause == IA_COMMAND || cause == IA_IDLE) { \
-		Cardinal j; \
-		for (j = 0; j < count; j++) \
-			Free(params[j]); \
-	} \
-}
 
 	parm[0] = '\0';
 	params[count] = parm;
@@ -1248,19 +1275,19 @@ execute_command(enum iaction cause, char *s, char **np)
 	} else if (np)
 		*np = s-1;
 
-	/* If it's a macro, do variable substitutions. */
-	if (cause == IA_MACRO || cause == IA_KEYMAP ||
-	    cause == IA_COMMAND || cause == IA_IDLE) {
-		Cardinal j;
-
-		for (j = 0; j < count; j++)
-			params[j] = do_subst(params[j], True, False);
-	}
+	/*
+	 * There used to be logic to do variable substituion here under most
+	 * circumstances. That's just plain wrong.
+	 *
+	 * Substitutions should be handled for specific arguments to specific
+	 * actions. If substitutions are needed for special situations, they
+	 * should be added explicitly, or new actions or variants of actions
+	 * should be added that include the substitutions.
+	 */
 
 	/* Search the action list. */
 	if (!strncasecmp(aname, PA_PFX, strlen(PA_PFX))) {
 		popup_an_error("Invalid action: %s", aname);
-		free_params();
 		return EM_ERROR;
 	}
 	any = -1;
@@ -1278,7 +1305,6 @@ execute_command(enum iaction cause, char *s, char **np)
 				if (any >= 0) {
 					popup_an_error("Ambiguous action name: "
 					    "%s", aname);
-					free_params();
 					return EM_ERROR;
 				}
 				any = i;
@@ -1291,11 +1317,9 @@ execute_command(enum iaction cause, char *s, char **np)
 		ia_cause = cause;
 		(*actions[any].proc)((Widget)NULL, (XEvent *)NULL,
 			count? params: (String *)NULL, &count);
-		free_params();
 		screen_disp(False);
 	} else {
 		popup_an_error("Unknown action: %s", aname);
-		free_params();
 		return EM_ERROR;
 	}
 
@@ -1303,7 +1327,9 @@ execute_command(enum iaction cause, char *s, char **np)
 	if (ft_state != FT_NONE)
 		sms->state = SS_FT_WAIT;
 #endif /*]*/
+#if defined(X3270_TRACE) /*[*/
 	trace_rollover_check();
+#endif /*]*/
 	if (CKBWAIT)
 		return EM_PAUSE;
 	else
@@ -1313,7 +1339,6 @@ execute_command(enum iaction cause, char *s, char **np)
 	popup_an_error("%s", fail_text[failreason-1]);
 	return EM_ERROR;
 #undef fail
-#undef free_params
 }
 
 /* Run the string at the top of the stack. */
@@ -1652,23 +1677,29 @@ read_from_file(void)
 
 		nr = read(sms->infd, dptr, 1);
 		if (nr < 0) {
+			trace_dsn("%s[%d] read error\n", ST_NAME, sms_depth);
 			sms_pop(False);
 			return;
 		}
 		if (nr == 0) {
 		    	if (sms->msc_len == 0) {
+				trace_dsn("%s[%d] read EOF\n", ST_NAME,
+					sms_depth);
 			    	sms_pop(False);
 				return;
 			} else {
-			    	*++dptr = '\0';
+				trace_dsn("%s[%d] read EOF without newline\n",
+					ST_NAME, sms_depth);
+			    	*dptr = '\0';
 			    	break;
 			}
 		}
-		if (*dptr == '\n') {
+		if (*dptr == '\r' || *dptr == '\n') {
 		    	if (sms->msc_len) {
 			    	*dptr = '\0';
 				break;
-			}
+			} else
+			    	continue;
 		}
 		dptr++;
 		sms->msc_len++;
@@ -1711,9 +1742,12 @@ sms_error(const char *msg)
 			send(s->infd, text, strlen(text), 0);
 		else
 			fprintf(s->outfile, "%s", text);
+		trace_script_output("%s", text);
 		Free(text);
-	} else
+	} else {
 		(void) fprintf(stderr, "%s\n", msg);
+		fflush(stderr);
+	}
 
 	/* Fail the current command. */
 	sms->success = False;
@@ -1741,7 +1775,7 @@ sms_info(const char *fmt, ...)
 	sms_t *s;
 
 	va_start(args, fmt);
-	vsprintf(msgbuf, fmt, args);
+	(void) vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
 	va_end(args);
 
 	do {
@@ -1761,6 +1795,7 @@ sms_info(const char *fmt, ...)
 				    	send(s->infd, text, strlen(text), 0);
 				else
 					(void) fprintf(s->outfile, "%s", text);
+				trace_script_output("%s", text);
 				Free(text);
 			} else
 				(void) printf("%.*s\n", nc, msg);
@@ -1773,7 +1808,7 @@ sms_info(const char *fmt, ...)
 
 /* Process available input from a script. */
 static void
-script_input(void)
+script_input(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
 	char buf[128];
 	size_t n2r;
@@ -1812,6 +1847,8 @@ script_input(void)
 		else
 #endif
 		popup_an_errno(errno, "%s[%d] read", ST_NAME, sms_depth);
+		sms_pop(True);
+		sms_continue();
 		return;
 	}
 	trace_dsn("Input for %s[%d] %s complete, nr=%d\n", ST_NAME, sms_depth,
@@ -1976,9 +2013,9 @@ sms_continue(void)
 
 		sms->state = SS_IDLE;
 
-		if (sms->wait_id != 0L) {
+		if (sms->wait_id != NULL_IOID) {
 			RemoveTimeOut(sms->wait_id);
-			sms->wait_id = 0L;
+			sms->wait_id = NULL_IOID;
 		}
 
 		switch (sms->type) {
@@ -2453,10 +2490,8 @@ status_string(void)
 
 	if (!kybdlock)
 		kb_stat = 'U';
-	else if (!CONNECTED || KBWAIT)
-		kb_stat = 'L';
 	else
-		kb_stat = 'E';
+		kb_stat = 'L';
 
 	if (formatted)
 		fmt_stat = 'F';
@@ -2525,8 +2560,8 @@ script_prompt(Boolean success)
 	s = status_string();
 
 	if (sms != SN && sms->accumulated)
-		(void) sprintf(timing, "%ld.%03ld", sms->msec / 1000L,
-			sms->msec % 1000L);
+		(void) snprintf(timing, sizeof(timing), "%ld.%03ld",
+			sms->msec / 1000L, sms->msec % 1000L);
 	else
 		(void) strcpy(timing, "-");
 
@@ -2540,6 +2575,7 @@ script_prompt(Boolean success)
 		(void) fprintf(sms->outfile, "%s", t);
 		(void) fflush(sms->outfile);
 	}
+	trace_script_output("%s", t);
 	free(t);
 }
 
@@ -2873,7 +2909,7 @@ sms_host_output(void)
 	}
 }
 
-/* Return whether error pop-ups and acition output should be short-circuited. */
+/* Return whether error pop-ups and action output should be short-circuited. */
 static sms_t *
 sms_redirect_to(void)
 {
@@ -2885,7 +2921,10 @@ sms_redirect_to(void)
 		     s->state == SS_CONNECT_WAIT ||
 		     s->state == SS_WAIT_OUTPUT ||
 		     s->state == SS_SWAIT_OUTPUT ||
-		     s->wait_id != 0L))
+#if defined(X3270_FT) /*[*/
+		     s->state == SS_FT_WAIT ||
+#endif /*]*/
+		     s->wait_id != NULL_IOID))
 			return s;
 	}
 	return NULL;
@@ -3038,7 +3077,7 @@ sms_store(unsigned char c)
 	/* If a script or macro is waiting to match a string, check now. */
 	if (sms->state == SS_EXPECTING && expect_matches()) {
 		RemoveTimeOut(sms->expect_id);
-		sms->expect_id = 0L;
+		sms->expect_id = NULL_IOID;
 		sms->state = SS_INCOMPLETE;
 		sms_continue();
 	}
@@ -3187,7 +3226,7 @@ Execute_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 
 /* Timeout for Expect action. */
 static void
-expect_timed_out(void)
+expect_timed_out(ioid_t id _is_unused)
 {
 	if (sms == SN || sms->state != SS_EXPECTING)
 		return;
@@ -3195,7 +3234,7 @@ expect_timed_out(void)
 	Free(expect_text);
 	expect_text = CN;
 	popup_an_error("%s: Timed out", action_name(Expect_action));
-	sms->expect_id = 0L;
+	sms->expect_id = NULL_IOID;
 	sms->state = SS_INCOMPLETE;
 	sms->success = False;
 	if (sms->is_login)
@@ -3205,12 +3244,13 @@ expect_timed_out(void)
 
 /* Timeout for Wait action. */
 static void
-wait_timed_out(void)
+wait_timed_out(ioid_t id _is_unused)
 {
     	/* If they just wanted a delay, succeed. */
     	if (sms->state == SS_TIME_WAIT) {
 	    	sms->success = True;
 		sms->state = SS_INCOMPLETE;
+		sms->wait_id = NULL_IOID;
 		sms_continue();
 		return;
 	}
@@ -3219,7 +3259,7 @@ wait_timed_out(void)
 	popup_an_error("%s: Timed out", action_name(Wait_action));
 
 	/* Forget the ID. */
-	sms->wait_id = 0L;
+	sms->wait_id = NULL_IOID;
 
 	/* If this is a login macro, it has failed. */
 	if (sms->is_login)
@@ -3271,7 +3311,7 @@ Expect_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 }
 
 
-#if defined(X3270_MENUS) /*[*/
+#if defined(X3270_DISPLAY) && defined(X3270_MENUS) /*[*/
 
 /* "Execute an Action" menu option */
 
@@ -3413,9 +3453,11 @@ Script_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 		(void) close(inpipe[0]);
 
 		/* Export the names of the pipes into the environment. */
-		(void) sprintf(env_buf[0], "X3270OUTPUT=%d", outpipe[0]);
+		(void) snprintf(env_buf[0], sizeof(env_buf[0]),
+			"X3270OUTPUT=%d", outpipe[0]);
 		(void) putenv(env_buf[0]);
-		(void) sprintf(env_buf[1], "X3270INPUT=%d", inpipe[1]);
+		(void) snprintf(env_buf[1], sizeof(env_buf[1]),
+			"X3270INPUT=%d", inpipe[1]);
 		(void) putenv(env_buf[1]);
 
 		/* Set up arguments. */
@@ -3509,7 +3551,7 @@ Script_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 		    NULL,
 		    NULL,
 		    FALSE,
-		    0,
+		    DETACHED_PROCESS,
 		    NULL,
 		    NULL,
 		    &startupinfo,
@@ -3535,11 +3577,12 @@ Script_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 	 * Note that this is an asynchronous event -- exits for multiple
 	 * children can happen in any order.
 	 */
-	sms->exit_id = AddInput((int)process_information.hProcess,
-			    child_exited);
+	sms->exit_id = AddInput((unsigned long)process_information.hProcess,
+		child_exited);
 
 	/* Allow the child script to connect back to us. */
-	sms->listen_id = AddInput((int)hevent, child_socket_connection);
+	sms->listen_id = AddInput((unsigned long)hevent,
+		child_socket_connection);
 
 	/* Enable input. */
 	script_enable();
@@ -3660,11 +3703,20 @@ Query_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 	static struct {
 		char *name;
 		const char *(*fn)(void);
+		char *string;
 	} queries[] = {
-		{ "BindPluName", net_query_bind_plu_name },
-		{ "ConnectionState", net_query_connection_state },
-		{ "Host", net_query_host },
-		{ "LuName", net_query_lu_name },
+		{ "BindPluName", net_query_bind_plu_name, NULL },
+		{ "ConnectionState", net_query_connection_state, NULL },
+		{ "CodePage", get_host_codepage, NULL },
+		{ "Cursor", ctlr_query_cursor, NULL },
+		{ "Formatted", ctlr_query_formatted, NULL },
+		{ "Host", net_query_host, NULL },
+		{ "LocalEncoding", get_codeset, NULL },
+		{ "LuName", net_query_lu_name, NULL },
+		{ "Model", NULL, full_model_name },
+		{ "ScreenCurSize", ctlr_query_cur_size, NULL },
+		{ "ScreenMaxSize", ctlr_query_max_size, NULL },
+		{ "Ssl", net_query_ssl, NULL },
 		{ CN, NULL }
 	};
 	int i;
@@ -3673,7 +3725,8 @@ Query_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 	case 0:
 		for (i = 0; queries[i].name != CN; i++) {
 			action_output("%s: %s", queries[i].name,
-					(*queries[i].fn)());
+					queries[i].fn? (*queries[i].fn)():
+					queries[i].string);
 		}
 		break;
 	case 1:
@@ -3681,7 +3734,11 @@ Query_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 			if (!strcasecmp(params[0], queries[i].name)) {
 				const char *s;
 
-				s = (*queries[i].fn)();
+				if (queries[i].fn) {
+					s = (*queries[i].fn)();
+				} else {
+					s = queries[i].string;
+				}
 				action_output("%s\n", *s? s: " ");
 				return;
 			}
@@ -3705,14 +3762,14 @@ Query_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 static void
 no_plugin(void)
 {
-	if (plugin_timeout_id != 0L) {
+	if (plugin_timeout_id != NULL_IOID) {
 		RemoveTimeOut(plugin_timeout_id);
-		plugin_timeout_id = 0L;
+		plugin_timeout_id = NULL_IOID;
 	}
 
-	if (plugin_input_id != 0L) {
+	if (plugin_input_id != NULL_IOID) {
 		RemoveInput(plugin_input_id);
-		plugin_input_id = 0L;
+		plugin_input_id = NULL_IOID;
 	}
 
 	if (plugin_inpipe != -1) {
@@ -3733,7 +3790,7 @@ no_plugin(void)
 
 /* Read a response from the plugin process. */
 static void
-plugin_input(void)
+plugin_input(unsigned long fd _is_inused, ioid_t id _is_unused)
 {
 	int nr;
 	char *nl;
@@ -3802,9 +3859,9 @@ plugin_input(void)
 		ptq_first = (ptq_first + 1) % PLUGIN_QMAX;
 		if (ptq_first == ptq_last) {
 			RemoveInput(plugin_input_id);
-			plugin_input_id = 0L;
+			plugin_input_id = NULL_IOID;
 			RemoveTimeOut(plugin_timeout_id);
-			plugin_timeout_id = 0L;
+			plugin_timeout_id = NULL_IOID;
 		}
 
 		xtra = (plugin_buf + prb_cnt + nr - 1) - nl;
@@ -3853,7 +3910,7 @@ plugin_timeout(void)
 				"Plugin %s timed out", s);
 	}
 
-	plugin_timeout_id = 0L;
+	plugin_timeout_id = NULL_IOID;
 	no_plugin();
 }
 
@@ -4051,9 +4108,9 @@ Plugin_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 		do_read_buffer(NULL, 0, ea_buf, plugin_outpipe);
 		plugin_tq[ptq_last] = PLUGIN_CMD;
 		ptq_last = (ptq_last + 1) % PLUGIN_QMAX;
-		if (plugin_timeout_id != 0L)
+		if (plugin_timeout_id != NULL_IOID)
 			RemoveTimeOut(plugin_timeout_id);
-		if (plugin_input_id == 0L)
+		if (plugin_input_id == NULL_IOID)
 			plugin_input_id = AddInput(plugin_inpipe,
 					plugin_input);
 		s = PLUGIN_BACKLOG * PLUGINWAIT_SECS;
@@ -4097,9 +4154,9 @@ plugin_aid(unsigned char aid)
 	 */
 	plugin_tq[ptq_last] = PLUGIN_AID;
 	ptq_last = (ptq_last + 1) % PLUGIN_QMAX;
-	if (plugin_timeout_id != 0L)
+	if (plugin_timeout_id != NULL_IOID)
 		RemoveTimeOut(plugin_timeout_id);
-	if (plugin_input_id == 0L)
+	if (plugin_input_id == NULL_IOID)
 		plugin_input_id = AddInput(plugin_inpipe, plugin_input);
 	s = PLUGIN_BACKLOG * PLUGINWAIT_SECS;
 	if (!plugin_started && s < PLUGINSTART_SECS)
@@ -4116,7 +4173,7 @@ Plugin_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
 }
 #endif /*]*/
 
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 /*
  * Bell action, used by scripts to ring the console bell and enter a comment
  * into the trace log.
@@ -4136,14 +4193,18 @@ Source_action(Widget w _is_unused, XEvent *event, String *params,
     Cardinal *num_params)
 {
     	int fd;
+	char *expanded_filename;
 
 	action_debug(Source_action, event, params, num_params);
 	if (check_usage(Source_action, *num_params, 1, 1) < 0)
 		return;
-	fd = open(params[0], O_RDONLY);
+	expanded_filename = do_subst(params[0], DS_VARS | DS_TILDE);
+	fd = open(expanded_filename, O_RDONLY);
 	if (fd < 0) {
+		Free(expanded_filename);
 	    	popup_an_errno(errno, "%s", params[0]);
 		return;
 	}
+	Free(expanded_filename);
 	push_file(fd);
 }

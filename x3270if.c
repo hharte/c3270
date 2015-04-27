@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2009, Paul Mattes.
+ * Copyright (c) 1995-2009, 2013-2014 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,70 +26,95 @@
  */
 
 /*
- * Script interface utility for x3270, c3270 and s3270.
+ * Script interface utility for x3270, c3270, wc3270, s3270 and ws3270.
  *
- * Accesses an x3270 command stream on the file descriptors defined by the
- * environment variables X3270OUTPUT (output from x3270, input to script) and
- * X3270INPUT (input to x3270, output from script).
+ * Accesses an emulator command stream in one of several different ways:
  *
- * Can also access a command stream via a socket, whose TCP port is defined by
- * the environment variable X3270PORT.
+ * - (Unix only) Using the file descriptors defined by the environment
+ *   variables X3270OUTPUT (output from the emulator, input to script) and
+ *   X3270INPUT (input to the emulator, output from script). These are
+ *   automatically passed to child scripts by the Unix emulators' Script()
+ *   action.
+ *
+ * - Using a loopback IPv4 socket whose TCP port is defined by the
+ *   environment variable X3270PORT. This is automatically passed to child
+ *   scripts by the Windows emulators' Script() action.
+ *
+ * - (Unix only) Using the Unix-domain socket /tmp/x3sck.<x3270-pid>. This
+ *   socket is created by the Unix emulators' -socket option.
+ *
+ * - Using a loopback IPv4 socket whose TCP port is passed in explicitly.
+ *   This port is bound by the emulators by the -scriptport option.
  */
 
 #include "conf.h"
 #if defined(_WIN32) /*[*/
-#include <windows.h>
-#include <io.h>
+# include "wincmn.h"
 #endif /*]*/
 #include <stdio.h>
 #if !defined(_MSC_VER) /*[*/
-#include <unistd.h>
+# include <unistd.h>
 #endif /*]*/
 #if !defined(_WIN32) /*[*/
-#include <string.h>
-#include <signal.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#if defined(HAVE_SYS_SELECT_H) /*[*/
-#include <sys/select.h>
-#endif /*]*/
-#if defined(HAVE_GETOPT_H) /*[*/
-#include <getopt.h>
-#endif /*]*/
+# include <string.h>
+# include <signal.h>
+# include <errno.h>
+# include <stdlib.h>
+# include <sys/types.h>
+# include <sys/socket.h>
+# include <sys/un.h>
+# include <netinet/in.h>
+# include <arpa/inet.h>
+# if defined(HAVE_SYS_SELECT_H) /*[*/
+#  include <sys/select.h>
+# endif /*]*/
+# if defined(HAVE_GETOPT_H) /*[*/
+#  include <getopt.h>
+# endif /*]*/
 #endif /*]*/
 
-#if defined(_WIN32) /*[*/
 #include "w3miscc.h"
-#endif /*]*/
 
 #define IBS	4096
 
 #define NO_STATUS	(-1)
 #define ALL_FIELDS	(-2)
 
-extern int optind;
-extern char *optarg;
+#if defined(_WIN32) /*[*/
+#define DIRSEP	'\\'
+#else /*][*/
+#define DIRSEP '/'
+#endif /*]*/
 
 static char *me;
 static int verbose = 0;
 static char buf[IBS];
 
-#if !defined(_WIN32) /*[*/
-static void iterative_io(int pid);
-#endif /*]*/
+static void iterative_io(int pid, unsigned short port);
 static void single_io(int pid, unsigned short port, int fn, char *cmd);
 
 static void
 usage(void)
 {
 	(void) fprintf(stderr, "\
-usage: %s [-v] [-S] [-s field] [-p pid] [-t port] [action[(param[,...])]]\n\
-       %s -i\n", me, me);
+usage: %s [options] action[(param[,...])]\n\
+           execute the named action\n\
+       %s [options] -s field\n\
+           display status field 0..12\n\
+       %s [options] -S\n\
+           display all status fields\n\
+       %s [options] -i\n\
+           shuttle commands and responses between stdin/stdout and emulator\n\
+    options:\n\
+       -v\n\
+           verbose operation\n"
+#if !defined(_WIN32) /*[*/
+"       -p pid\n\
+           connect to process <pid>\n"
+#endif /*]*/
+"       -t port\n\
+           connect to TCP port <port>\n",
+	    me, me, me, me);
 	exit(2);
 }
 
@@ -131,20 +156,22 @@ main(int argc, char *argv[])
 #endif /*]*/
 
 	/* Identify yourself. */
-	if ((me = strrchr(argv[0], '/')) != (char *)NULL)
+	if ((me = strrchr(argv[0], DIRSEP)) != NULL) {
 		me++;
-	else
+	} else {
 		me = argv[0];
+	}
 
 	/* Parse options. */
+	opterr = 0;
 	while ((c = getopt(argc, argv, "ip:s:St:v")) != -1) {
 		switch (c) {
-#if !defined(_WIN32) /*[*/
 		    case 'i':
 			if (fn >= 0)
 				usage();
 			iterative++;
 			break;
+#if !defined(_WIN32) /*[*/
 		    case 'p':
 			pid = (int)strtoul(optarg, &ptr, 0);
 			if (ptr == optarg || *ptr != '\0' || pid <= 0) {
@@ -199,8 +226,9 @@ main(int argc, char *argv[])
 		if (iterative)
 			usage();
 	}
-	if (pid && port)
+	if (pid && port) {
 	    	usage();
+	}
 
 #if !defined(_WIN32) /*[*/
 	/* Ignore broken pipes. */
@@ -208,11 +236,9 @@ main(int argc, char *argv[])
 #endif /*]*/
 
 	/* Do the I/O. */
-#if !defined(_WIN32) /*[*/
 	if (iterative)
-		iterative_io(pid);
+		iterative_io(pid, port);
 	else
-#endif /*]*/
 		single_io(pid, port, fn, argv[optind]);
 	return 0;
 }
@@ -232,7 +258,8 @@ usock(int pid)
 	}
 	(void) memset(&ssun, '\0', sizeof(struct sockaddr_un));
 	ssun.sun_family = AF_UNIX;
-	(void) sprintf(ssun.sun_path, "/tmp/x3sck.%d", pid);
+	(void) snprintf(ssun.sun_path, sizeof(ssun.sun_path), "/tmp/x3sck.%d",
+		pid);
 	if (connect(fd, (struct sockaddr *)&ssun, sizeof(ssun)) < 0) {
 		perror("connect");
 		exit(2);
@@ -471,9 +498,10 @@ single_io(int pid, unsigned short port, int fn, char *cmd)
 }
 
 #if !defined(_WIN32) /*[*/
-/* Act as a passive pipe between 'expect' and x3270. */
+
+/* Act as a passive pipe to the emulator. */
 static void
-iterative_io(int pid)
+iterative_io(int pid, unsigned short port)
 {
 #	define N_IO 2
 	struct {
@@ -481,10 +509,11 @@ iterative_io(int pid)
 		int rfd, wfd;
 		char buf[IBS];
 		int offset, count;
-	} io[N_IO];	/* [0] is program->x3270, [1] is x3270->program */
+	} io[N_IO];	/* [0] is script->emulator, [1] is emulator->script */
 	fd_set rfds, wfds;
 	int fd_max = 0;
 	int i;
+	char *port_env;
 
 #ifdef DEBUG
 	if (verbose) {
@@ -494,27 +523,32 @@ iterative_io(int pid)
 #endif
 
 	/* Get the x3270 file descriptors. */
-	io[0].name = "program->x3270";
+	io[0].name = "script->emulator";
 	io[0].rfd = fileno(stdin);
+#if !defined(_WIN32) /*[*/
 	if (pid)
 		io[0].wfd = usock(pid);
 	else
+#endif /*]*/
+	if (port) {
+		io[0].wfd = tsock(port);
+	} else if ((port_env = getenv("X3270PORT")) != NULL) {
+		io[0].wfd = tsock(atoi(port_env));
+	} else {
 		io[0].wfd = fd_env("X3270INPUT");
-	io[1].name = "x3270->program";
-	if (pid)
+	}
+	io[1].name = "emulator->script";
+	if (pid || port || (port_env != NULL)) {
 		io[1].rfd = dup(io[0].wfd);
-	else
+	} else {
 		io[1].rfd = fd_env("X3270OUTPUT");
+	}
 	io[1].wfd = fileno(stdout);
 	for (i = 0; i < N_IO; i++) {
 		if (io[i].rfd > fd_max)
 			fd_max = io[i].rfd;
 		if (io[i].wfd > fd_max)
 			fd_max = io[i].wfd;
-		(void) fcntl(io[i].rfd, F_SETFL,
-		    fcntl(io[i].rfd, F_GETFL, 0) | O_NDELAY);
-		(void) fcntl(io[i].wfd, F_SETFL,
-		    fcntl(io[i].wfd, F_GETFL, 0) | O_NDELAY);
 		io[i].offset = 0;
 		io[i].count = 0;
 	}
@@ -551,8 +585,9 @@ iterative_io(int pid)
 			perror("x3270if: select");
 			exit(2);
 		}
-		if (verbose)
+		if (verbose) {
 			(void) fprintf(stderr, "select->%d\n", rv);
+		}
 
 		for (i = 0; i < N_IO; i++) {
 			if (io[i].count) {
@@ -570,10 +605,11 @@ iterative_io(int pid)
 					io[i].offset += rv;
 					io[i].count -= rv;
 #ifdef DEBUG
-					if (verbose)
+					if (verbose) {
 						(void) fprintf(stderr,
 						    "write(%s)->%d\n",
 						    io[i].name, rv);
+					}
 #endif
 				}
 			} else if (FD_ISSET(io[i].rfd, &rfds)) {
@@ -589,12 +625,179 @@ iterative_io(int pid)
 				io[i].offset = 0;
 				io[i].count = rv;
 #ifdef DEBUG
-				if (verbose)
+				if (verbose) {
 					(void) fprintf(stderr,
 					    "read(%s)->%d\n", io[i].name, rv);
+				}
 #endif
 			}
 		}
 	}
 }
+
+#else /*][*/
+
+static HANDLE stdin_thread;
+static HANDLE stdin_enable_event, stdin_done_event;
+static char stdin_buf[256];
+static int stdin_nr;
+static int stdin_error;
+
+/*
+ * stdin input thread
+ *
+ * Endlessly:
+ * - waits for stdin_enable_event
+ * - reads from stdin
+ * - leaves the input in stdin_buf and the length in stdin_nr
+ * - sets stdin_done_event
+ *
+ * If there is a read error, leaves -1 in stdin_nr and a Windows error code in
+ * stdin_error.
+ */
+static DWORD WINAPI
+stdin_read(LPVOID lpParameter)
+{
+	for (;;) {
+		DWORD rv;
+
+		rv = WaitForSingleObject(stdin_enable_event, INFINITE);
+		switch (rv) {
+		case WAIT_ABANDONED:
+		case WAIT_TIMEOUT:
+		case WAIT_FAILED:
+			stdin_nr = -1;
+			stdin_error = GetLastError();
+			SetEvent(stdin_done_event);
+			break;
+		case WAIT_OBJECT_0:
+			stdin_nr = read(0, stdin_buf, sizeof(stdin_buf));
+			if (stdin_nr < 0) {
+				stdin_error = GetLastError();
+			}
+			SetEvent(stdin_done_event);
+			break;
+		}
+	}
+	return 0;
+}
+
+/* Act as a passive pipe to the emulator. */
+static void
+iterative_io(int pid, unsigned short port)
+{
+	char *port_env;
+    	int s;
+	struct sockaddr_in sin;
+	HANDLE socket_event;
+	HANDLE ha[2];
+	DWORD ret;
+	char buf[1024];
+	int nr;
+
+	if (!port) {
+		port_env = getenv("X3270PORT");
+		if (port_env == NULL) {
+			fprintf(stderr, "Must specify port or put port in "
+				"X3270PORT.\n");
+			exit(2);
+		}
+		port = atoi(port_env);
+		if (port <= 0 || (port & ~0xffff)) {
+			fprintf(stderr, "Invalid X3270PORT.\n");
+			exit(2);
+		}
+	}
+
+	/* Open the socket. */
+	s = socket(PF_INET, SOCK_STREAM, 0);
+	if (s < 0) {
+		fprintf(stderr, "socket failed: error 0x%x\n",
+			(unsigned)WSAGetLastError());
+		exit(2);
+	}
+	memset(&sin, '\0', sizeof(sin));
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons(port);
+	sin.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+	if (connect(s, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+		fprintf(stderr, "connect(%u) failed: %s\n",
+			port, win32_strerror(WSAGetLastError()));
+		exit(2);
+	}
+	if (verbose) {
+		fprintf(stderr, "<connected to port %d>\n", port);
+	}
+	socket_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (socket_event == NULL) {
+		fprintf(stderr, "CreateEvent failed: %s\n",
+			win32_strerror(GetLastError()));
+		exit(2);
+	}
+	if (WSAEventSelect(s, socket_event, FD_READ|FD_CLOSE) != 0) {
+		fprintf(stderr, "WSAEventSelect failed: %s\n",
+			win32_strerror(WSAGetLastError()));
+		exit(2);
+	}
+
+	/* Create a thread to read data from the socket. */
+	stdin_enable_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	stdin_done_event = CreateEvent(NULL, FALSE, FALSE, NULL);
+	stdin_thread = CreateThread(NULL, 0, stdin_read, NULL, 0, NULL);
+	if (stdin_thread == NULL) {
+		fprintf(stderr, "CreateThread failed: %s\n",
+			win32_strerror(GetLastError()));
+		exit(2);
+	}
+	SetEvent(stdin_enable_event);
+
+	ha[0] = socket_event;
+	ha[1] = stdin_done_event;
+	for (;;) {
+		ret = WaitForMultipleObjects(2, ha, FALSE, INFINITE);
+		switch (ret) {
+		case WAIT_OBJECT_0: /* socket input */
+			nr = recv(s, buf, sizeof(buf), 0);
+			if (verbose) {
+				fprintf(stderr, "<%d byte%s from socket>\n",
+					nr, (nr == 1)? "": "s");
+			}
+			if (nr < 0) {
+				fprintf(stderr, "recv failed: %s\n",
+					win32_strerror(WSAGetLastError()));
+				exit(2);
+			}
+			if (nr == 0) {
+				exit(0);
+			}
+			fwrite(buf, 1, nr, stdout);
+			break;
+		case WAIT_OBJECT_0 + 1: /* stdin input */
+			if (verbose) {
+				fprintf(stderr, "<%d byte%s from stdin>\n",
+					stdin_nr, (stdin_nr == 1)? "": "s");
+			}
+			if (stdin_nr < 0) {
+				fprintf(stderr, "stdin read failed: %s\n",
+					win32_strerror(stdin_error));
+				exit(2);
+			}
+			if (stdin_nr == 0) {
+				exit(0);
+			}
+			(void) send(s, stdin_buf, stdin_nr, 0);
+			SetEvent(stdin_enable_event);
+			break;
+		case WAIT_FAILED:
+			fprintf(stderr, "WaitForMultipleObjects failed: %s\n ",
+				win32_strerror(GetLastError()));
+			exit(2);
+		default:
+			fprintf(stderr, "Unexpected return %d from "
+				"WaitForMultipleObjects\n", (int)ret);
+			exit(2);
+		}
+	}
+}
+
 #endif /*]*/

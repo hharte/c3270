@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2009, Paul Mattes.
+ * Copyright (c) 1995-2009, 2013-2014 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,11 @@
 
 extern void add_resource(const char *name, const char *value);
 extern char *ctl_see(int c);
-extern char *do_subst(const char *s, Boolean do_vars, Boolean do_tilde);
+extern char *do_subst(const char *s, unsigned flags);
+#define DS_NONE		0x0
+#define DS_VARS		0x1
+#define DS_TILDE	0x2
+#define DS_UNIQUE	0x4
 extern void fcatv(FILE *f, char *s);
 extern const char *get_message(const char *key);
 extern char *get_fresource(const char *fmt, ...) printflike(1, 2);
@@ -47,12 +51,16 @@ extern char *xs_buffer(const char *fmt, ...) printflike(1, 2);
 extern void xs_error(const char *fmt, ...) printflike(1, 2);
 extern void xs_warning(const char *fmt, ...) printflike(1, 2);
 
-extern unsigned long AddInput(int, void (*)(void));
-extern unsigned long AddExcept(int, void (*)(void));
-extern unsigned long AddOutput(int, void (*)(void));
-extern void RemoveInput(unsigned long);
-extern unsigned long AddTimeOut(unsigned long msec, void (*fn)(void));
-extern void RemoveTimeOut(unsigned long cookie);
+typedef void (*iofn_t)(unsigned long fd, ioid_t id);
+typedef void (*tofn_t)(ioid_t id);
+#define NULL_IOID	0L
+extern ioid_t AddInput(unsigned long, iofn_t);
+extern ioid_t AddExcept(unsigned long, iofn_t);
+extern ioid_t AddOutput(unsigned long, iofn_t);
+extern void RemoveInput(ioid_t);
+extern ioid_t AddTimeOut(unsigned long msec, tofn_t);
+extern void RemoveTimeOut(ioid_t id);
+
 extern KeySym StringToKeysym(char *s);
 extern char *KeysymToString(KeySym k);
 extern int read_resource_file(const char *filename, Boolean fatal);
@@ -71,3 +79,6 @@ extern void rpf_free(rpf_t *r);
 extern const char *build_options(void);
 extern void dump_version(void);
 extern const char *display_scale(double d, char *buf, size_t buflen);
+#if defined(WC3270) /*[*/
+extern void start_html_help(void);
+#endif /*]*/

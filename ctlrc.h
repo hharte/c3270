@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005-2009, Paul Mattes.
+ * Copyright (c) 2005-2009, 2013-2014 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,14 @@ enum pds {
 	PDS_BAD_ADDR = -2	/* command contained a bad address */
 };
 
+extern unsigned char crm_attr[];
+extern int crm_nattr;
+extern unsigned char reply_mode;
+extern Boolean screen_alt;
+extern Boolean screen_changed;
+extern int first_changed;
+extern int last_changed;
+
 void ctlr_aclear(int baddr, int count, int clear_ea);
 void ctlr_add(int baddr, unsigned char c, unsigned char cs);
 void ctlr_add_bg(int baddr, unsigned char color);
@@ -52,6 +60,10 @@ void ctlr_clear(Boolean can_snap);
 void ctlr_erase(Boolean alt);
 void ctlr_erase_all_unprotected(void);
 void ctlr_init(unsigned cmask);
+const char *ctlr_query_cur_size(void);
+const char *ctlr_query_cursor(void);
+const char *ctlr_query_formatted(void);
+const char *ctlr_query_max_size(void);
 void ctlr_read_buffer(unsigned char aid_byte);
 void ctlr_read_modified(unsigned char aid_byte, Boolean all);
 void ctlr_reinit(unsigned cmask);
@@ -65,6 +77,7 @@ enum pds ctlr_write(unsigned char buf[], int buflen, Boolean erase);
 void ctlr_write_sscp_lu(unsigned char buf[], int buflen);
 struct ea *fa2ea(int baddr);
 int find_field_attribute(int baddr);
+int find_field_attribute_ea(int baddr, struct ea *ea);
 unsigned char get_field_attribute(register int baddr);
 Boolean get_bounded_field_attribute(register int baddr, register int bound,
     unsigned char *fa_out);
@@ -109,10 +122,12 @@ enum dbcs_why { DBCS_FIELD, DBCS_SUBFIELD, DBCS_ATTRIBUTE };
 
 #if defined(X3270_DBCS) /*[*/
 enum dbcs_state ctlr_dbcs_state(int baddr);
+enum dbcs_state ctlr_dbcs_state_ea(int baddr, struct ea *ea);
 extern enum dbcs_state ctlr_lookleft_state(int baddr, enum dbcs_why *why);
 int ctlr_dbcs_postprocess(void);
 #else /*][*/
 #define ctlr_dbcs_state(b)		DBCS_NONE
+#define ctlr_dbcs_state_ea(b, ea)	DBCS_NONE
 #define ctlr_lookleft_state(b, w)	DBCS_NONE
 #define ctlr_dbcs_postprocess()		0
 #endif /*]*/

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2013, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * All rights reserved.
  *
@@ -34,17 +34,19 @@
 
 #include "globals.h"
 #if !defined(_WIN32) /*[*/
-#include <pwd.h>
+# include <pwd.h>
 #endif /*]*/
 #include <stdarg.h>
+#include <fcntl.h>
+#include <errno.h>
 #include "resources.h"
+#if defined(WC3270) /*[*/
+# include "appres.h"
+# include "screenc.h"
+#endif /*]*/
 #include "charsetc.h"
 
 #include "utilc.h"
-
-#if defined(_MSVC_VER) /*[*/
-#include "Msc/deprecated.h"
-#endif /*]*/
 
 #define my_isspace(c)	isspace((unsigned char)c)
 
@@ -66,7 +68,7 @@ xs_vsprintf(const char *fmt, va_list args)
 	char buf[16384];
 	int nc;
 
-	nc = vsprintf(buf, fmt, args);
+	nc = vsnprintf(buf, sizeof(buf), fmt, args);
 	if (nc > sizeof(buf))
 		Error("Internal buffer overflow");
 	r = Malloc(nc + 1);
@@ -169,7 +171,8 @@ scatv(const char *s, char *buf, size_t len)
 			break;
 		    default:
 			if ((c & 0x7f) < ' ')
-				(void) sprintf(cbuf, "\\%03o", c & 0xff);
+				(void) snprintf(cbuf, sizeof(cbuf), "\\%03o",
+					c & 0xff);
 			else {
 				cbuf[0] = c;
 				cbuf[1] = '\0';
@@ -397,132 +400,208 @@ get_message(const char *key)
 	static char namebuf[128];
 	char *r;
 
-	(void) sprintf(namebuf, "%s.%s", ResMessage, key);
+	(void) snprintf(namebuf, sizeof(namebuf), "%s.%s", ResMessage, key);
 	if ((r = get_resource(namebuf)) != CN)
 		return r;
 	else {
-		(void) sprintf(namebuf, "[missing \"%s\" message]", key);
+		(void) snprintf(namebuf, sizeof(namebuf),
+			"[missing \"%s\" message]", key);
 		return namebuf;
 	}
 }
 
-#define ex_getenv getenv
+static char *
+ex_getenv(const char *name, unsigned long flags, int *up)
+{
+	if (!strcasecmp(name, "TIMESTAMP")) {
+		/* YYYYMMDDHHMMSSUUUUUU */
+		static char ts[21];
+		struct timeval tv;
+		time_t t; /* on Windows, timeval.tv_sec is a long */
+		struct tm *tm;
+
+		if (gettimeofday(&tv, NULL) < 0)
+			return NewString("?");
+		t = tv.tv_sec;
+		tm = localtime(&t);
+		(void) snprintf(ts, sizeof(ts),
+			"%04u%02u%02u%02u%02u%02u%06u",
+			tm->tm_year + 1900,
+			tm->tm_mon + 1,
+			tm->tm_mday,
+			tm->tm_hour,
+			tm->tm_min,
+			tm->tm_sec,
+			(unsigned)tv.tv_usec);
+		return NewString(ts);
+	} else if (!strcasecmp(name, "UNIQUE")) {
+		char buf[64];
+
+		++*up;
+		if (*up == 0)
+			(void) snprintf(buf, sizeof(buf), "%u",
+				(unsigned)getpid());
+		else
+			(void) snprintf(buf, sizeof(buf), "%u-%u",
+				(unsigned)getpid(), *up);
+		return NewString(buf);
+	} else {
+		return getenv(name);
+	}
+}
 
 /* Variable and tilde substitution functions. */
-static char *
-var_subst(const char *s)
+/*static*/ char *
+var_subst(const char *s, unsigned long flags)
 {
+	const char *t;
 	enum { VS_BASE, VS_QUOTE, VS_DOLLAR, VS_BRACE, VS_VN, VS_VNB, VS_EOF }
-	    state = VS_BASE;
+	    state;
 	char c;
-	int o_len = strlen(s) + 1;
+	int o_len;
 	char *ob;
 	char *o;
-	const char *vn_start = CN;
+	const char *vn_start;
+	int u = -1;
+#	define LBR	'{'
+#	define RBR	'}'
 
 	if (strchr(s, '$') == CN)
 		return NewString(s);
 
-	o_len = strlen(s) + 1;
-	ob = Malloc(o_len);
-	o = ob;
-#	define LBR	'{'
-#	define RBR	'}'
+	for (;;) {
+		t = s;
+		state = VS_BASE;
+		vn_start = CN;
+		o_len = strlen(t) + 1;
+		ob = Malloc(o_len);
+		o = ob;
 
-	while (state != VS_EOF) {
-		c = *s;
-		switch (state) {
-		    case VS_BASE:
-			if (c == '\\')
-			    state = VS_QUOTE;
-			else if (c == '$')
-			    state = VS_DOLLAR;
-			else
-			    *o++ = c;
-			break;
-		    case VS_QUOTE:
-			if (c == '$') {
-				*o++ = c;
-				o_len--;
-			} else {
-				*o++ = '\\';
-				*o++ = c;
-			}
-			state = VS_BASE;
-			break;
-		    case VS_DOLLAR:
-			if (c == LBR)
-				state = VS_BRACE;
-			else if (isalpha(c) || c == '_') {
-				vn_start = s;
-				state = VS_VN;
-			} else {
-				*o++ = '$';
-				*o++ = c;
+		while (state != VS_EOF) {
+			c = *t;
+			switch (state) {
+			    case VS_BASE:
+				if (c == '\\')
+				    state = VS_QUOTE;
+				else if (c == '$')
+				    state = VS_DOLLAR;
+				else
+				    *o++ = c;
+				break;
+			    case VS_QUOTE:
+				if (c == '$') {
+					*o++ = c;
+					o_len--;
+				} else {
+					*o++ = '\\';
+					*o++ = c;
+				}
 				state = VS_BASE;
-			}
-			break;
-		    case VS_BRACE:
-			if (isalpha(c) || c == '_') {
-				vn_start = s;
-				state = VS_VNB;
-			} else {
-				*o++ = '$';
-				*o++ = LBR;
-				*o++ = c;
-				state = VS_BASE;
-			}
-			break;
-		    case VS_VN:
-		    case VS_VNB:
-			if (!(isalnum(c) || c == '_')) {
-				int vn_len;
-				char *vn;
-				char *vv;
-
-				vn_len = s - vn_start;
-				if (state == VS_VNB && c != RBR) {
+				break;
+			    case VS_DOLLAR:
+				if (c == LBR)
+					state = VS_BRACE;
+				else if (isalpha(c) || c == '_') {
+					vn_start = t;
+					state = VS_VN;
+				} else {
+					*o++ = '$';
+					*o++ = c;
+					state = VS_BASE;
+				}
+				break;
+			    case VS_BRACE:
+				if (isalpha(c) || c == '_') {
+					vn_start = t;
+					state = VS_VNB;
+				} else {
 					*o++ = '$';
 					*o++ = LBR;
-					(void) strncpy(o, vn_start, vn_len);
-					o += vn_len;
+					*o++ = c;
 					state = VS_BASE;
-					continue;	/* rescan */
 				}
-				vn = Malloc(vn_len + 1);
-				(void) strncpy(vn, vn_start, vn_len);
-				vn[vn_len] = '\0';
-				if ((vv = ex_getenv(vn))) {
-					*o = '\0';
-					o_len = o_len
-					    - 1			/* '$' */
-					    - (state == VS_VNB)	/* { */
-					    - vn_len		/* name */
-					    - (state == VS_VNB)	/* } */
-					    + strlen(vv);
-					ob = Realloc(ob, o_len);
-					o = strchr(ob, '\0');
-					(void) strcpy(o, vv);
-					o += strlen(vv);
+				break;
+			    case VS_VN:
+			    case VS_VNB:
+				if (!(isalnum(c) || c == '_')) {
+					int vn_len;
+					char *vn;
+					char *vv;
+
+					vn_len = t - vn_start;
+					if (state == VS_VNB && c != RBR) {
+						*o++ = '$';
+						*o++ = LBR;
+						(void) strncpy(o, vn_start, vn_len);
+						o += vn_len;
+						state = VS_BASE;
+						continue;	/* rescan */
+					}
+					vn = Malloc(vn_len + 1);
+					(void) strncpy(vn, vn_start, vn_len);
+					vn[vn_len] = '\0';
+					if ((vv = ex_getenv(vn, flags, &u))) {
+						*o = '\0';
+						o_len = o_len
+						    - 1			/* '$' */
+						    - (state == VS_VNB)	/* { */
+						    - vn_len		/* name */
+						    - (state == VS_VNB)	/* } */
+						    + strlen(vv);
+						ob = Realloc(ob, o_len);
+						o = strchr(ob, '\0');
+						(void) strcpy(o, vv);
+						o += strlen(vv);
+					}
+					Free(vn);
+					if (state == VS_VNB) {
+						state = VS_BASE;
+						break;
+					} else {
+						/* Rescan this character */
+						state = VS_BASE;
+						continue;
+					}
 				}
-				Free(vn);
-				if (state == VS_VNB) {
-					state = VS_BASE;
-					break;
-				} else {
-					/* Rescan this character */
-					state = VS_BASE;
+				break;
+			    case VS_EOF:
+				break;
+			}
+			t++;
+			if (c == '\0')
+				state = VS_EOF;
+		}
+
+		/*
+		 * Check for $UNIQUE.
+		 *
+		 * vr_subst() will increment u if $UNIQUE was used. If it has
+		 * been incremented, then try creating the resulting file. If
+		 * the open() call fails with EEXIST, then re-run this function
+		 * with the new value of u, and try this again with the next
+		 * name.
+		 *
+		 * Keep trying until open() succeeds, or fails with something
+		 * other than EEXIST.
+		 */
+		if (u != -1) {
+			int fd;
+
+			fd = open(ob, O_WRONLY | O_EXCL | O_CREAT, 0600);
+			if (fd < 0) {
+				if (errno == EEXIST) {
+					/* Try again. */
+					Free(ob);
 					continue;
 				}
+			} else {
+				close(fd);
 			}
 			break;
-		    case VS_EOF:
-			break;
-		}
-		s++;
-		if (c == '\0')
-			state = VS_EOF;
+		} else
+		    	break;
 	}
+
 	return ob;
 }
 
@@ -579,35 +658,48 @@ tilde_subst(const char *s)
 	}
 	return r;
 }
+#else /*][*/
+static char *
+tilde_subst(const char *s)
+{
+	char *t;
+
+	if (*s != '~' || (t = getenv("HOMEPATH")) == NULL)
+		return NewString(s);
+
+	switch (*(s + 1)) {
+	case '\0':
+		return NewString(t);
+	case '/':
+	case '\\':
+		return xs_buffer("%s%s", t, s + 1);
+	default:
+		return NewString(s);
+	}
+}
 #endif /*]*/
 
 char *
-do_subst(const char *s, Boolean do_vars, Boolean do_tilde)
+do_subst(const char *s, unsigned flags)
 {
-	if (!do_vars && !do_tilde)
+	if (flags == DS_NONE)
 		return NewString(s);
 
-	if (do_vars) {
+	if (flags & DS_VARS) {
 		char *t;
 
-		t = var_subst(s);
-#if !defined(_WIN32) /*[*/
-		if (do_tilde) {
+		t = var_subst(s, flags);
+		if (flags & DS_TILDE) {
 			char *u;
 
 			u = tilde_subst(t);
 			Free(t);
 			return u;
 		}
-#endif /*]*/
 		return t;
 	}
 
-#if !defined(_WIN32) /*[*/
 	return tilde_subst(s);
-#else /*][*/
-	return NewString(s);
-#endif /*]*/
 }
 
 /*
@@ -744,7 +836,7 @@ rpf(rpf_t *r, char *fmt, ...)
 
 	/* Figure out how much space would be needed. */
 	va_start(a, fmt);
-	ns = vsprintf(tbuf, fmt, a); /* XXX: dangerous, but so is vsnprintf */
+	ns = vsnprintf(tbuf, sizeof(tbuf), fmt, a);
 	va_end(a);
 	if (ns >= SP_TMP_LEN)
 	    Error("rpf overrun");
@@ -803,7 +895,7 @@ get_resource(const char *name)
 typedef void voidfn(void);
 
 typedef struct iorec {
-	voidfn		*fn;
+	iofn_t 		 fn;
 	XtInputId	 id;
 	struct iorec	*next;
 } iorec_t;
@@ -811,20 +903,20 @@ typedef struct iorec {
 static iorec_t *iorecs = NULL;
 
 static void
-io_fn(XtPointer closure, int *source _is_unused, XtInputId *id)
+io_fn(XtPointer closure, int *source, XtInputId *id)
 {
 	iorec_t *iorec;
 
 	for (iorec = iorecs; iorec != NULL; iorec = iorec->next) {
-	    if (iorec->id == *id) {
-		(*iorec->fn)();
-		break;
-	    }
+		if (iorec->id == *id) {
+			(*iorec->fn)(*source, *id);
+			break;
+		}
 	}
 }
 
-unsigned long
-AddInput(int sock, voidfn *fn)
+ioid_t
+AddInput(unsigned long sock, iofn_t fn)
 {
 	iorec_t *iorec;
 
@@ -839,8 +931,8 @@ AddInput(int sock, voidfn *fn)
 	return iorec->id;
 }
 
-unsigned long
-AddExcept(int sock, voidfn *fn)
+ioid_t
+AddExcept(unsigned long sock, iofn_t fn)
 {
 	iorec_t *iorec;
 
@@ -854,8 +946,8 @@ AddExcept(int sock, voidfn *fn)
 	return iorec->id;
 }
 
-unsigned long
-AddOutput(int sock, voidfn *fn)
+ioid_t
+AddOutput(unsigned long sock, iofn_t fn)
 {
 	iorec_t *iorec;
 
@@ -870,20 +962,20 @@ AddOutput(int sock, voidfn *fn)
 }
 
 void
-RemoveInput(unsigned long cookie)
+RemoveInput(ioid_t cookie)
 {
 	iorec_t *iorec;
 	iorec_t *prev = NULL;
 
 	for (iorec = iorecs; iorec != NULL; iorec = iorec->next) {
-	    if (iorec->id == (XtInputId)cookie) {
+	    if (iorec->id == cookie) {
 		break;
 	    }
 	    prev = iorec;
 	}
 
 	if (iorec != NULL) {
-		XtRemoveInput((XtInputId)cookie);
+		XtRemoveInput(cookie);
 		if (prev != NULL)
 			prev->next = iorec->next;
 		else
@@ -897,7 +989,7 @@ RemoveInput(unsigned long cookie)
  */
 
 typedef struct torec {
-	voidfn		*fn;
+	tofn_t		 fn;
 	XtIntervalId	 id;
 	struct torec	*next;
 } torec_t;
@@ -909,7 +1001,7 @@ to_fn(XtPointer closure, XtIntervalId *id)
 {
 	torec_t *torec;
 	torec_t *prev = NULL;
-	voidfn *fn = NULL;
+	tofn_t fn = NULL;
 
 	for (torec = torecs; torec != NULL; torec = torec->next) {
 		if (torec->id == *id) {
@@ -931,12 +1023,12 @@ to_fn(XtPointer closure, XtIntervalId *id)
 		XtFree((XtPointer)torec);
 
 		/* Call the function. */
-		(*fn)();
+		(*fn)((ioid_t)id);
 	}
 }
 
-unsigned long
-AddTimeOut(unsigned long msec, voidfn *fn)
+ioid_t
+AddTimeOut(unsigned long msec, tofn_t fn)
 {
 	torec_t *torec;
 
@@ -945,24 +1037,24 @@ AddTimeOut(unsigned long msec, voidfn *fn)
 	torec->id = XtAppAddTimeOut(appcontext, msec, to_fn, NULL);
 	torec->next = torecs;
 	torecs = torec;
-	return (unsigned long)torec->id;
+	return torec->id;
 }
 
 void
-RemoveTimeOut(unsigned long cookie)
+RemoveTimeOut(ioid_t cookie)
 {
 	torec_t *torec;
 	torec_t *prev = NULL;
 
 	for (torec = torecs; torec != NULL; torec = torec->next) {
-		if (torec->id == (XtIntervalId)cookie) {
+		if (torec->id == cookie) {
 			break;
 		}
 		prev = torec;
 	}
 
 	if (torec != NULL) {
-		XtRemoveTimeOut((XtIntervalId)cookie);
+		XtRemoveTimeOut(cookie);
 		if (prev != NULL)
 			prev->next = torec->next;
 		else
@@ -978,6 +1070,11 @@ StringToKeysym(char *s)
 {
 	return XStringToKeysym(s);
 }
+#endif /*]*/
+
+#if defined(_MSC_VER) /*[*/
+#define xstr(s)	str(s)
+#define str(s)	#s
 #endif /*]*/
 
 /* Return configuration options. */
@@ -1024,14 +1121,14 @@ build_options(void)
 		" --disable-menus"
 # endif /*]*/
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 # if defined(X3270_PRINTER) /*[*/
 		" --enable-printer"
 # else /*][*/
 		" --disable-printer"
 # endif /*]*/
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 # if defined(X3270_SCRIPT) /*[*/
 		" --enable-script"
 # else /*][*/
@@ -1070,6 +1167,17 @@ build_options(void)
 #if defined(USE_ICONV) /*[*/
 		" --with-iconv"
 #endif /*]*/
+#if defined(_MSC_VER) /*[*/
+		" via MSVC " xstr(_MSC_VER)
+#endif /*]*/
+#if defined(__GNUC__) /*[*/
+		" via gcc " __VERSION__
+#endif /*]*/
+#if defined(__LP64__) || defined(__LLP64__) /*[*/
+		" 64-bit"
+#else /*][*/
+		" 32-bit"
+#endif /*]*/
 		;
 }
 
@@ -1079,7 +1187,7 @@ dump_version(void)
 	printf("%s\n%s\n", build, build_options());
 	charset_list();
 	printf("\n"
-"Copyright 1989-2013, Paul Mattes, GTRC and others.\n"
+"Copyright 1989-2014, Paul Mattes, GTRC and others.\n"
 "See the source code or documentation for licensing details.\n"
 "Distributed WITHOUT ANY WARRANTY; without even the implied warranty of\n"
 "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n");
@@ -1090,15 +1198,29 @@ dump_version(void)
 const char *
 display_scale(double d, char *buf, size_t buflen)
 {
-    if (d >= 1000000.0)
-	snprintf(buf, buflen, "%.3g M", d / 1000000.0);
-    else if (d >= 1000.0)
-	snprintf(buf, buflen, "%.3g K", d / 1000.0);
-    else
-	snprintf(buf, buflen, "%.3g ", d);
+	if (d >= 1000000.0)
+		snprintf(buf, buflen, "%.3g M", d / 1000000.0);
+	else if (d >= 1000.0)
+		snprintf(buf, buflen, "%.3g K", d / 1000.0);
+	else
+		snprintf(buf, buflen, "%.3g ", d);
 
-    /* Don't trust snprintf. */
-    buf[buflen - 1] = '\0';
+	/* Don't trust snprintf. */
+	buf[buflen - 1] = '\0';
 
-    return buf;
+	return buf;
 }
+
+#if defined(WC3270) /*[*/
+void
+start_html_help(void)
+{
+	char *cmd;
+
+	cmd = xs_buffer("start \"wc3270 Help\" \"%shtml\\README.html\"",
+		instdir);
+	system(cmd);
+	Free(cmd);
+	screen_fixup(); /* get back mouse events */
+}
+#endif /*]*/

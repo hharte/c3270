@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2012, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta, GA
  *  30332.
@@ -45,6 +45,7 @@
 #include "popupsc.h"
 #include "printc.h"
 #include "resources.h"
+#include "scrollc.h"
 #include "selectc.h"
 #include "togglesc.h"
 #include "trace_dsc.h"
@@ -52,18 +53,20 @@
 #include "xioc.h"
 
 #if defined(X3270_FT) /*[*/
+#include "unicodec.h"
 #include "ftc.h"
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 #include "keypadc.h"
 #include "menubarc.h"
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) || defined(WC3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 #include "screenc.h"
 #endif /*]*/
 
 #if defined(X3270_DISPLAY) /*[*/
 #include <X11/keysym.h>
+#include <X11/XKBlib.h>
 
 #define MODMAP_SIZE	8
 #define MAP_SIZE	13
@@ -97,17 +100,22 @@ XtActionsRec all_actions[] = {
 #if defined(X3270_DISPLAY) /*[*/
 	{ "AltCursor",  	AltCursor_action },
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	{ "Compose",		Compose_action },
 #endif /*]*/
-#if defined(X3270_DISPLAY) /*[*/
+#if defined(WC3270) /*[*/
+	{ "Copy",		Copy_action },
+#endif /*]*/
+#if defined(X3270_DISPLAY) || defined(WC3270) /*[*/
 	{ "Cut",		Cut_action },
+#endif /*]*/
+#if defined(X3270_DISPLAY) /*[*/
 	{ "Default",		Default_action },
 	{ "HandleMenu",		HandleMenu_action },
 	{ "HardPrint",		PrintText_action },
 	{ "HexString",		HexString_action },
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	{ "Info",		Info_action },
 #endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
@@ -135,9 +143,12 @@ XtActionsRec all_actions[] = {
 	{ "PrintWindow",	PrintWindow_action },
 #endif /*]*/
 	{ "PrintText",		PrintText_action },
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	{ "Flip",		Flip_action },
 	{ "Redraw",		Redraw_action },
+#endif /*]*/
+#if defined(X3270_INTERACTIVE) /*[*/
+	{ "Scroll",		Scroll_action },
 #endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
 	{ "SetFont",		SetFont_action },
@@ -162,14 +173,12 @@ XtActionsRec all_actions[] = {
 	{ "Attn",		Attn_action },
 	{ "BackSpace",		BackSpace_action },
 	{ "BackTab",		BackTab_action },
-#if defined(X3270_SCRIPT) && (defined(X3270_DISPLAY) || defined(C3270)) /*[*/
+#if defined(X3270_SCRIPT) && (defined(X3270_INTERACTIVE)) /*[*/
 	{ "Bell",		Bell_action },
 #endif /*]*/
 	{ "CircumNot",		CircumNot_action },
 	{ "Clear",		Clear_action },
-#if defined(C3270) /*[*/
 	{ "Close",		Disconnect_action },
-#endif /*]*/
 #if defined(X3270_SCRIPT) /*[*/
 	{ "CloseScript",	CloseScript_action },
 #endif /*]*/
@@ -193,7 +202,7 @@ XtActionsRec all_actions[] = {
 #if defined(X3270_SCRIPT) /*[*/
 	{ "Execute",		Execute_action },
 #endif /*]*/
-#if defined(C3270) || defined(WC3270) /*[*/
+#if defined(C3270) /*[*/
 	{ "Exit",		Quit_action },
 #endif /*]*/
 #if defined(X3270_SCRIPT) /*[*/
@@ -202,7 +211,7 @@ XtActionsRec all_actions[] = {
 	{ "FieldEnd",		FieldEnd_action },
 	{ "FieldMark",		FieldMark_action },
 	{ "HexString",		HexString_action},
-#if defined(C3270) || defined(WC3270) /*[*/
+#if defined(C3270) /*[*/
 	{ "Help",		Help_action},
 #endif/*]*/
 #if defined(X3270_SCRIPT) /*[*/
@@ -212,7 +221,7 @@ XtActionsRec all_actions[] = {
 	{ "Insert",		Insert_action },
 	{ "Interrupt",		Interrupt_action },
 	{ "Key",		Key_action },
-#if defined(C3270) /*[*/
+#if defined(C3270) && defined(X3270_MENUS) /*[*/
 	{ "Keypad",		Keypad_action },
 #endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
@@ -223,7 +232,7 @@ XtActionsRec all_actions[] = {
 #if defined(X3270_SCRIPT) || defined(S3270) /*[*/
 	{ "Macro", 		Macro_action },
 #endif /*]*/
-#if defined(C3270) /*[*/
+#if defined(C3270) && defined(X3270_MENUS) /*[*/
 	{ "Menu",		Menu_action },
 #endif /*]*/
 	{ "MonoCase",		MonoCase_action },
@@ -233,9 +242,7 @@ XtActionsRec all_actions[] = {
 	{ "MoveCursor",		MoveCursor_action },
 	{ "Newline",		Newline_action },
 	{ "NextWord",		NextWord_action },
-#if defined(C3270) || defined(WC3270) /*[*/
 	{ "Open",		Connect_action },
-#endif /*]*/
 	{ "PA",			PA_action },
 	{ "PF",			PF_action },
 #if defined(WC3270) /*[*/
@@ -248,7 +255,7 @@ XtActionsRec all_actions[] = {
 #if defined(X3270_PRINTER) /*[*/
 	{ "Printer",		Printer_action },
 #endif /*]*/
-#if defined(X3270_SCRIPT) || defined(S3270) /*[*/
+#if defined(X3270_SCRIPT) || defined(TCL3270) /*[*/
 	{ "Query",		Query_action },
 #endif /*]*/
 	{ "Quit",		Quit_action },
@@ -344,7 +351,7 @@ action_suppressed(String name, char *suppress)
 
 	while ((t = strstr(s, name)) != CN) {
 		char b;
-		char e = s[strlen(name)];
+		char e = t[strlen(name)];
 
 		if (t == suppress)
 			b = '\0';
@@ -353,7 +360,7 @@ action_suppressed(String name, char *suppress)
 		if ((b == '\0' || b == ')' || isspace(b)) &&
 		    (e == '\0' || e == '(' || isspace(e)))
 			return True;
-		s += strlen(name);
+		s = t + strlen(name);
 	}
 	return False;
 }
@@ -445,7 +452,7 @@ learn_modifiers(void)
 			if (!kc)
 				continue;
 
-			switch(XKeycodeToKeysym(display, kc, 0)) {
+			switch(XkbKeycodeToKeysym(display, kc, 0, 0)) {
 			    case XK_Meta_L:
 			    case XK_Meta_R:
 				name = "Meta";
@@ -687,8 +694,9 @@ action_debug(XtActionProc action, XEvent *event, String *params,
 	char snbuf[11];
 #endif /*]*/
 
-	if (!toggled(EVENT_TRACE))
+	if (!toggled(TRACING)) {
 		return;
+	}
 	if (event == (XEvent *)NULL) {
 		trace_event(" %s", ia_name[(int)ia_cause]);
 	}
@@ -709,7 +717,8 @@ action_debug(XtActionProc action, XEvent *event, String *params,
 		if (ks == NoSymbol)
 			symname = "NoSymbol";
 		else if ((symname = XKeysymToString(ks)) == CN) {
-			(void) sprintf(snbuf, "0x%lx", (unsigned long)ks);
+			(void) snprintf(snbuf, sizeof(snbuf), "0x%lx",
+				(unsigned long)ks);
 			symname = snbuf;
 		}
 		do {

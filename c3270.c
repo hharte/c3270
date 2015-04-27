@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2013, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta, GA
  *  30332.
@@ -37,6 +37,7 @@
  */
 
 #include "globals.h"
+
 #if !defined(_WIN32) /*[*/
 #include <sys/wait.h>
 #endif /*]*/
@@ -51,6 +52,7 @@
 #include "ansic.h"
 #include "charsetc.h"
 #include "ctlrc.h"
+#include "unicodec.h"
 #include "ftc.h"
 #include "gluec.h"
 #include "hostc.h"
@@ -62,6 +64,7 @@
 #include "popupsc.h"
 #include "printerc.h"
 #include "screenc.h"
+#include "selectc.h"
 #include "statusc.h"
 #include "telnetc.h"
 #include "togglesc.h"
@@ -78,12 +81,10 @@
 #endif /*]*/
 
 #if defined(_WIN32) /*[*/
-#include <windows.h>
 #include "w3miscc.h"
 #include "winversc.h"
 #include "windirsc.h"
 #include "relinkc.h"
-#include <shellapi.h>
 #endif /*]*/
 
 #if defined(_WIN32) /*[*/
@@ -100,7 +101,7 @@ static void interact(void);
 static void stop_pager(void);
 
 #if defined(HAVE_LIBREADLINE) /*[*/
-static CPPFunction attempted_completion;
+static char **attempted_completion();
 static char *completion_entry(const char *, int);
 #endif /*]*/
 
@@ -115,9 +116,9 @@ static Boolean pager_q = False;
 #if !defined(_WIN32) /*[*/
 /* Base keymap for c3270. */
 static char *base_keymap1 =
-    "Ctrl<Key>]: Escape\n"
-    "Ctrl<Key>a Ctrl<Key>a: Key(0x01)\n"
-    "Ctrl<Key>a Ctrl<Key>]: Key(0x1d)\n"
+           "Ctrl<Key>]: Escape\n"
+"Ctrl<Key>a Ctrl<Key>a: Key(0x01)\n"
+"Ctrl<Key>a Ctrl<Key>]: Key(0x1d)\n"
     "Ctrl<Key>a <Key>c: Clear\n"
     "Ctrl<Key>a <Key>e: Escape\n"
     "Ctrl<Key>a <Key>i: Insert\n"
@@ -125,138 +126,147 @@ static char *base_keymap1 =
     "Ctrl<Key>a <Key>k: Keypad\n"
     "Ctrl<Key>a <Key>l: Redraw\n"
     "Ctrl<Key>a <Key>m: Compose\n"
+# if defined(X3270_MENUS) /*[*/
     "Ctrl<Key>a <Key>n: Menu\n"
+# endif /*]*/
     "Ctrl<Key>a <Key>p: PrintText\n"
     "Ctrl<Key>a <Key>^: Key(notsign)\n"
-    "<Key>DC: Delete\n"
-    "<Key>UP: Up\n"
-    "<Key>DOWN: Down\n"
-    "<Key>LEFT: Left\n"
-    "<Key>RIGHT: Right\n"
-    "<Key>HOME: Home\n"
+              "<Key>DC: Delete\n"
+              "<Key>UP: Up\n"
+            "<Key>DOWN: Down\n"
+            "<Key>LEFT: Left\n"
+           "<Key>RIGHT: Right\n"
+            "<Key>HOME: Home\n"
     "Ctrl<Key>a <Key>1: PA(1)\n"
     "Ctrl<Key>a <Key>2: PA(2)\n";
 static char *base_keymap2 =
     "Ctrl<Key>a <Key>3: PA(3)\n"
-    "<Key>F1: PF(1)\n"
-    "Ctrl<Key>a <Key>F1: PF(13)\n"
-    "<Key>F2: PF(2)\n"
-    "Ctrl<Key>a <Key>F2: PF(14)\n"
-    "<Key>F3: PF(3)\n"
-    "Ctrl<Key>a <Key>F3: PF(15)\n"
-    "<Key>F4: PF(4)\n"
-    "Ctrl<Key>a <Key>F4: PF(16)\n"
-    "<Key>F5: PF(5)\n"
-    "Ctrl<Key>a <Key>F5: PF(17)\n"
-    "<Key>F6: PF(6)\n"
-    "Ctrl<Key>a <Key>F6: PF(18)\n";
+              "<Key>F1: PF(1)\n"
+   "Ctrl<Key>a <Key>F1: PF(13)\n"
+              "<Key>F2: PF(2)\n"
+   "Ctrl<Key>a <Key>F2: PF(14)\n"
+              "<Key>F3: PF(3)\n"
+   "Ctrl<Key>a <Key>F3: PF(15)\n"
+              "<Key>F4: PF(4)\n"
+   "Ctrl<Key>a <Key>F4: PF(16)\n"
+              "<Key>F5: PF(5)\n"
+   "Ctrl<Key>a <Key>F5: PF(17)\n"
+              "<Key>F6: PF(6)\n"
+   "Ctrl<Key>a <Key>F6: PF(18)\n";
 static char *base_keymap3 =
-    "<Key>F7: PF(7)\n"
-    "Ctrl<Key>a <Key>F7: PF(19)\n"
-    "<Key>F8: PF(8)\n"
-    "Ctrl<Key>a <Key>F8: PF(20)\n"
-    "<Key>F9: PF(9)\n"
-    "Ctrl<Key>a <Key>F9: PF(21)\n"
-    "<Key>F10: PF(10)\n"
-    "Ctrl<Key>a <Key>F10: PF(22)\n"
-    "<Key>F11: PF(11)\n"
-    "Ctrl<Key>a <Key>F11: PF(23)\n"
-    "<Key>F12: PF(12)\n"
-    "Ctrl<Key>a <Key>F12: PF(24)\n";
+              "<Key>F7: PF(7)\n"
+   "Ctrl<Key>a <Key>F7: PF(19)\n"
+              "<Key>F8: PF(8)\n"
+   "Ctrl<Key>a <Key>F8: PF(20)\n"
+              "<Key>F9: PF(9)\n"
+   "Ctrl<Key>a <Key>F9: PF(21)\n"
+             "<Key>F10: PF(10)\n"
+  "Ctrl<Key>a <Key>F10: PF(22)\n"
+             "<Key>F11: PF(11)\n"
+  "Ctrl<Key>a <Key>F11: PF(23)\n"
+             "<Key>F12: PF(12)\n"
+  "Ctrl<Key>a <Key>F12: PF(24)\n"
+           "<Key>PPAGE: Scroll(Backward)\n"
+           "<Key>NPAGE: Scroll(Forward)\n";
 
 /* Base keymap for c3270, 3270 mode. */
 static char *base_3270_keymap =
     "Ctrl<Key>a <Key>a: Attn\n"
-    "Ctrl<Key>c: Clear\n"
-    "Ctrl<Key>d: Dup\n"
-    "Ctrl<Key>f: FieldMark\n"
-    "Ctrl<Key>h: Erase\n"
-    "Ctrl<Key>i: Tab\n"
-    "Ctrl<Key>j: Newline\n"
-    "Ctrl<Key>k: Keypad\n"
-    "Ctrl<Key>l: Redraw\n"
-    "Ctrl<Key>m: Enter\n"
-    "Ctrl<Key>n: Menu\n"
-    "Ctrl<Key>r: Reset\n"
-    "Ctrl<Key>u: DeleteField\n"
+           "Ctrl<Key>c: Clear\n"
+           "Ctrl<Key>d: Dup\n"
+           "Ctrl<Key>f: FieldMark\n"
+           "Ctrl<Key>h: Erase\n"
+           "Ctrl<Key>i: Tab\n"
+           "Ctrl<Key>j: Newline\n"
+           "Ctrl<Key>k: Keypad\n"
+           "Ctrl<Key>l: Redraw\n"
+           "Ctrl<Key>m: Enter\n"
+# if defined(X3270_MENUS) /*[*/
+           "Ctrl<Key>n: Menu\n"
+# endif /*]*/
+           "Ctrl<Key>r: Reset\n"
+           "Ctrl<Key>u: DeleteField\n"
     "Ctrl<Key>a <Key>v: ToggleReverse\n"
     "Ctrl<Key>a <Key>f: Flip\n"
-    "<Key>IC: ToggleInsert\n"
-    "<Key>DC: Delete\n"
-    "<Key>BACKSPACE: Erase\n"
-    "<Key>HOME: Home\n"
-    "<Key>END: FieldEnd\n";
-
+              "<Key>IC: ToggleInsert\n"
+              "<Key>DC: Delete\n"
+       "<Key>BACKSPACE: Erase\n"
+            "<Key>HOME: Home\n"
+             "<Key>END: FieldEnd\n";
+  
 #else /*][*/
 
 /* Base keymap for wc3270. */
 static char *base_keymap =
-       "Alt <Key>1:      PA(1)\n"
-       "Alt <Key>2:      PA(2)\n"
-       "Alt <Key>3:      PA(3)\n"
-       "Alt <Key>^:      Key(notsign)\n"
-       "Alt <Key>c:      Clear\n"
-       "Alt <Key>C:      Clear\n"
-       "Alt <Key>k:      Keypad\n"
-       "Alt <Key>K:      Keypad\n"
-       "Alt <Key>l:      Redraw\n"
-       "Alt <Key>L:      Redraw\n"
-       "Alt <Key>m:      Compose\n"
-       "Alt <Key>M:      Compose\n"
-       "Alt <Key>n:      Menu\n"
-       "Alt <Key>N:      Menu\n"
-       "Alt <Key>p:      PrintText\n"
-       "Alt <Key>P:      PrintText\n"
-      "Ctrl <Key>]:      Escape\n"
-     "Shift <Key>F1:     PF(13)\n"
-     "Shift <Key>F2:     PF(14)\n"
-     "Shift <Key>F3:     PF(15)\n"
-     "Shift <Key>F4:     PF(16)\n"
-     "Shift <Key>F5:     PF(17)\n"
-     "Shift <Key>F6:     PF(18)\n"
-     "Shift <Key>F7:     PF(19)\n"
-     "Shift <Key>F8:     PF(20)\n"
-     "Shift <Key>F9:     PF(21)\n"
-     "Shift <Key>F10:    PF(22)\n"
-     "Shift <Key>F11:    PF(23)\n"
-     "Shift <Key>F12:    PF(24)\n"
-     "Shift <Key>ESCAPE: Key(0x1d)\n";
+           "Alt <Key>1: PA(1)\n"
+           "Alt <Key>2: PA(2)\n"
+           "Alt <Key>3: PA(3)\n"
+           "Alt <Key>^: Key(notsign)\n"
+          "Ctrl <Key>c: Copy\n"
+           "Alt <Key>k: Keypad\n"
+           "Alt <Key>K: Keypad\n"
+           "Alt <Key>l: Redraw\n"
+           "Alt <Key>L: Redraw\n"
+           "Alt <Key>m: Compose\n"
+           "Alt <Key>M: Compose\n"
+# if defined(X3270_MENUS) /*[*/
+           "Alt <Key>n: Menu\n"
+           "Alt <Key>N: Menu\n"
+# endif /*]*/
+           "Alt <Key>p: PrintText(gdi)\n"
+           "Alt <Key>P: PrintText(gdi)\n"
+          "Ctrl <Key>v: Paste\n"
+          "Ctrl <Key>x: Cut\n"
+          "Ctrl <Key>]: Escape\n"
+        "Shift <Key>F1: PF(13)\n"
+        "Shift <Key>F2: PF(14)\n"
+        "Shift <Key>F3: PF(15)\n"
+        "Shift <Key>F4: PF(16)\n"
+        "Shift <Key>F5: PF(17)\n"
+        "Shift <Key>F6: PF(18)\n"
+        "Shift <Key>F7: PF(19)\n"
+        "Shift <Key>F8: PF(20)\n"
+       " Shift <Key>F9: PF(21)\n"
+       "Shift <Key>F10: PF(22)\n"
+       "Shift <Key>F11: PF(23)\n"
+       "Shift <Key>F12: PF(24)\n"
+    "Shift <Key>ESCAPE: Key(0x1d)\n"
+           "<Key>PRIOR: Scroll(Backward)\n"
+	    "<Key>NEXT: Scroll(Forward)";
 
 /* Base keymap for wc3270, 3270 mode. */
 static char *base_3270_keymap =
-      "Ctrl <Key>a:      Attn\n"
-       "Alt <Key>a:      Attn\n"
-       "Alt <Key>A:      Attn\n"
-      "Ctrl <Key>c:      Clear\n"
-      "Ctrl <Key>d:      Dup\n"
-       "Alt <Key>d:      Dup\n"
-       "Alt <Key>D:      Dup\n"
-      "Ctrl <Key>f:      FieldMark\n"
-       "Alt <Key>f:      FieldMark\n"
-       "Alt <Key>F:      FieldMark\n"
-      "Ctrl <Key>h:      Erase\n"
-       "Alt <Key>i:      Insert\n"
-       "Alt <Key>I:      Insert\n"
-      "Ctrl <Key>i:      Tab\n"
-      "Ctrl <Key>j:      Newline\n"
-      "Ctrl <Key>l:      Redraw\n"
-      "Ctrl <Key>m:      Enter\n"
-      "Ctrl <Key>r:      Reset\n"
-       "Alt <Key>r:      Reset\n"
-       "Alt <Key>R:      Reset\n"
-      "Ctrl <Key>u:      DeleteField\n"
-      "Ctrl <Key>v:      Paste\n"
-       "Alt <Key>v:      ToggleReverse\n"
-       "Alt <Key>x:      Flip\n"
-           "<Key>INSERT: ToggleInsert\n"
-     "Shift <Key>TAB:    BackTab\n"
-           "<Key>BACK:   Erase\n"
-     "Shift <Key>END:    EraseEOF\n"
-           "<Key>END:    FieldEnd\n"
-     "Shift <Key>LEFT:   PreviousWord\n"
-     "Shift <Key>RIGHT:  NextWord\n"
-           "<Key>PRIOR:  PF(7)\n"
-	   "<Key>NEXT:   PF(8)";
+          "Ctrl <Key>a: Attn\n"
+           "Alt <Key>a: Attn\n"
+           "Alt <Key>A: Attn\n"
+           "Alt <Key>c: Clear\n"
+           "Alt <Key>C: Clear\n"
+          "Ctrl <Key>d: Dup\n"
+           "Alt <Key>d: Dup\n"
+           "Alt <Key>D: Dup\n"
+          "Ctrl <Key>f: FieldMark\n"
+           "Alt <Key>f: FieldMark\n"
+           "Alt <Key>F: FieldMark\n"
+          "Ctrl <Key>h: Erase\n"
+           "Alt <Key>i: Insert\n"
+           "Alt <Key>I: Insert\n"
+          "Ctrl <Key>i: Tab\n"
+          "Ctrl <Key>j: Newline\n"
+          "Ctrl <Key>l: Redraw\n"
+          "Ctrl <Key>m: Enter\n"
+          "Ctrl <Key>r: Reset\n"
+           "Alt <Key>r: Reset\n"
+           "Alt <Key>R: Reset\n"
+          "Ctrl <Key>u: DeleteField\n"
+           "Alt <Key>v: ToggleReverse\n"
+           "Alt <Key>x: Flip\n"
+          "<Key>INSERT: ToggleInsert\n"
+       "Shift <Key>TAB: BackTab\n"
+            "<Key>BACK: Erase\n"
+       "Shift <Key>END: EraseEOF\n"
+             "<Key>END: FieldEnd\n"
+      "Shift <Key>LEFT: PreviousWord\n"
+     "Shift <Key>RIGHT: NextWord\n";
 #endif /*]*/
 
 Boolean any_error_output = False;
@@ -267,12 +277,14 @@ Boolean dont_return = False;
 #if defined(_WIN32) /*[*/
 char *instdir = NULL;
 char *myappdata = NULL;
+char *commonappdata = NULL;
+char *mydesktop = NULL;
 int is_installed;
 static void start_auto_shortcut(void);
 #endif /*]*/
 
 void
-usage(char *msg)
+usage(const char *msg)
 {
 	if (msg != CN)
 		fprintf(stderr, "%s\n", msg);
@@ -286,7 +298,7 @@ usage(char *msg)
 /* Callback for connection state changes. */
 static void
 main_connect(Boolean ignored)
-{       
+{
 	if (CONNECTED || appres.disconnect_clear) {
 #if defined(C3270_80_132) /*[*/
 		if (appres.altscreen != CN)
@@ -339,14 +351,17 @@ int
 main(int argc, char *argv[])
 {
 	const char	*cl_hostname = CN;
-#if defined(_WIN32) /*[*/
+#if !defined(_WIN32) /*[*/
+	pid_t		 pid;
+	int		 status;
+#else /*][*/
 	char		*delenv;
 #endif /*]*/
 
 #if defined(_WIN32) /*[*/
 	(void) get_version_info();
-	if (get_dirs(argv[0], "wc3270", &instdir, NULL, &myappdata,
-		    &is_installed) < 0)
+	if (get_dirs(argv[0], "wc3270", &instdir, &mydesktop, &myappdata, NULL,
+		    &commonappdata, &is_installed) < 0)
 	    	x3270_exit(1);
 	if (sockstart())
 	    	x3270_exit(1);
@@ -364,7 +379,7 @@ main(int argc, char *argv[])
 	argc = parse_command_line(argc, (const char **)argv, &cl_hostname);
 
 	printf("%s\n\n"
-		"Copyright 1989-2013 by Paul Mattes, GTRC and others.\n"
+		"Copyright 1989-2014 by Paul Mattes, GTRC and others.\n"
 		"Type 'show copyright' for full copyright information.\n"
 		"Type 'help' for help information.\n\n",
 		build);
@@ -389,13 +404,14 @@ main(int argc, char *argv[])
 		(void) charset_init(CN);
 	}
 	action_init();
+	model_init();
 
 #if defined(HAVE_LIBREADLINE) /*[*/
 	/* Set up readline. */
 	rl_readline_name = "c3270";
 	rl_initialize();
 	rl_attempted_completion_function = attempted_completion;
-#if defined(RL_READLINE_VERSION) /*[*/
+#if defined(RL_READLINE_VERSION) && (RL_READLINE_VERSION > 0x0402) /*[*/
 	rl_completion_entry_function = completion_entry;
 #else /*][*/
 	rl_completion_entry_function = (Function *)completion_entry;
@@ -409,13 +425,12 @@ main(int argc, char *argv[])
 	idle_init();
 	keymap_init();
 	hostfile_init();
-	hostfile_init();
 	ansi_init();
 
 	sms_init();
 
 	register_schange(ST_CONNECT, main_connect);
-        register_schange(ST_3270_MODE, main_connect);
+	register_schange(ST_3270_MODE, main_connect);
         register_schange(ST_EXITING, main_exiting);
 #if defined(X3270_FT) /*[*/
 	ft_init();
@@ -433,12 +448,6 @@ main(int argc, char *argv[])
 #endif /*]*/
 
 	/* Handle initial toggle settings. */
-#if defined(X3270_TRACE) /*[*/
-	if (!appres.debug_tracing) {
-		appres.toggle[DS_TRACE].value = False;
-		appres.toggle[EVENT_TRACE].value = False;
-	}
-#endif /*]*/
 	initialize_toggles();
 	icmd_init();
 
@@ -467,15 +476,14 @@ main(int argc, char *argv[])
 		screen_disp(False);
 	} else {
 	    	/* Drop to the prompt. */
-		if (appres.secure) {
-			Error("Must specify hostname with secure option");
-		}
 		appres.once = False;
-		if (!appres.no_prompt) {
+		if (!appres.secure) {
 			interact();
 			screen_disp(False);
-		} else
+		} else {
 			pause_for_errors();
+			screen_resume();
+		}
 	}
 	peer_script_init();
 
@@ -491,7 +499,7 @@ main(int argc, char *argv[])
 			escape_pending = False;
 			screen_suspend();
 		}
-		if (!appres.no_prompt && !CONNECTED && !appres.reconnect) {
+		if (!appres.secure && !CONNECTED && !appres.reconnect) {
 			screen_suspend();
 			(void) printf("Disconnected.\n");
 			if (appres.once)
@@ -508,14 +516,16 @@ main(int argc, char *argv[])
 			screen_resume();
 		} else if (!CONNECTED &&
 			   !appres.reconnect &&
-			   !appres.no_prompt) {
+			   cl_hostname != NULL) {
 			screen_suspend();
 			x3270_exit(0);
 		}
 
 #if !defined(_WIN32) /*[*/
-		if (children && waitpid(0, (int *)0, WNOHANG) > 0)
+		if (children && (pid = waitpid(-1, &status, WNOHANG)) > 0) {
+			printer_check(pid, status);
 			--children;
+		}
 #else /*][*/
 		printer_check();
 #endif /*]*/
@@ -558,7 +568,7 @@ interact(void)
 	stop_pager();
 
 	trace_event("Interacting.\n");
-	if (appres.secure || appres.no_prompt) {
+	if (appres.secure) {
 		char s[10];
 
 		printf("[Press <Enter>] ");
@@ -939,7 +949,7 @@ hms(time_t ts)
 	(void) time(&t);
 
 	td = t - ts;
-	hr = td / 3600;
+	hr = (long)(td / 3600);
 	mn = (td % 3600) / 60;
 	sc = td % 60;
 
@@ -969,14 +979,12 @@ static void
 status_dump(void)
 {
 	const char *emode, *ftype, *ts;
+	const char *clu;
 #if defined(X3270_TN3270E) /*[*/
 	const char *eopts;
 	const char *bplu;
 #endif /*]*/
 	const char *ptype;
-	extern int linemode; /* XXX */
-	extern time_t ns_time;
-	extern int ns_bsent, ns_rsent, ns_brcvd, ns_rrcvd;
 
 	action_output("%s", build);
 	action_output("%s %s: %d %s x %d %s, %s, %s",
@@ -987,8 +995,9 @@ status_dump(void)
 	    (appres.extended && !std_ds_host) ? get_message("extendedDs") :
 		get_message("standardDs"));
 	action_output("%s %s", get_message("terminalName"), termtype);
-	if (connected_lu != CN && connected_lu[0])
-		action_output("%s %s", get_message("luName"), connected_lu);
+	clu = net_query_lu_name();
+	if (clu != CN && clu[0])
+		action_output("%s %s", get_message("luName"), clu);
 #if defined(X3270_TN3270E) /*[*/
 	bplu = net_query_bind_plu_name();
 	if (bplu != CN && bplu[0])
@@ -1093,9 +1102,13 @@ status_dump(void)
 		} else if (IN_3270) {
 			action_output("  %s%s, %s", emode,
 			    get_message("dsMode"), ts);
-		} else
+		} else if (cstate == CONNECTED_UNBOUND) {
+			action_output("  %s%s, %s", emode,
+			    get_message("unboundMode"), ts);
+		} else {
 			action_output("  %s, %s",
 				get_message("unnegotiated"), ts);
+		}
 
 #if defined(X3270_TN3270E) /*[*/
 		eopts = tn3270e_current_opts();
@@ -1164,7 +1177,7 @@ copyright_dump(void)
 	action_output(" ");
 	action_output("%s", build);
 	action_output(" ");
-	action_output("Copyright (c) 1993-2013, Paul Mattes.");
+	action_output("Copyright (c) 1993-2014, Paul Mattes.");
 	action_output("Copyright (c) 1990, Jeff Sparkes.");
 	action_output("Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta, GA");
 	action_output(" 30332.");
@@ -1224,104 +1237,262 @@ void
 Trace_action(Widget w _is_unused, XEvent *event _is_unused, String *params,
     Cardinal *num_params)
 {
-	int tg = 0;
-	Boolean both = False;
 	Boolean on = False;
+	Cardinal arg0 = 0;
 
 	action_debug(Trace_action, event, params, num_params);
+
 	if (*num_params == 0) {
-		action_output("Data tracing is %sabled.",
-		    toggled(DS_TRACE)? "en": "dis");
-		action_output("Keyboard tracing is %sabled.",
-		    toggled(EVENT_TRACE)? "en": "dis");
+		if (toggled(TRACING) && tracefile_name != NULL) {
+			action_output("Trace file is %s.", tracefile_name);
+		} else {
+			action_output("Tracing is %sabled.",
+			    toggled(TRACING)? "en": "dis");
+		}
 		return;
 	}
-	if (!strcasecmp(params[0], "Data"))
-		tg = DS_TRACE;
-	else if (!strcasecmp(params[0], "Keyboard"))
-		tg = EVENT_TRACE;
-	else if (!strcasecmp(params[0], "Off")) {
-		both = True;
+
+	if (!strcasecmp(params[0], "Data") ||
+	    !strcasecmp(params[0], "Keyboard")) {
+		/* Skip. */
+		arg0++;
+	}
+	if (!strcasecmp(params[arg0], "Off")) {
 		on = False;
-		if (*num_params > 1) {
-			popup_an_error("Trace(): Too many arguments for 'Off'");
+		arg0++;
+		if (*num_params > arg0) {
+			popup_an_error("Trace: Too many arguments for 'Off'");
 			return;
 		}
-	} else if (!strcasecmp(params[0], "On")) {
-		both = True;
+		if (!toggled(TRACING)) {
+			return;
+		}
+	} else if (!strcasecmp(params[arg0], "On")) {
 		on = True;
-	} else {
-		popup_an_error("Trace(): Unknown trace type -- "
-		    "must be Data or Keyboard");
-		return;
-	}
-	if (!both) {
-		if (*num_params == 1 || !strcasecmp(params[1], "On"))
-			on = True;
-		else if (!strcasecmp(params[1], "Off")) {
-			on = False;
-			if (*num_params > 2) {
-				popup_an_error("Trace(): Too many arguments "
-				    "for 'Off'");
-				return;
+		arg0++;
+		if (*num_params == arg0) {
+			/* Nothing else to do. */
+		} else if (*num_params == arg0 + 1) {
+			if (toggled(TRACING)) {
+				popup_an_error("Trace: filename argument "
+					"ignored.");
+			} else {
+				trace_set_trace_file(params[arg0]);
 			}
 		} else {
-			popup_an_error("Trace(): Must be 'On' or 'Off'");
+			popup_an_error("Trace: Too many arguments for 'On'");
 			return;
+		}
+	} else {
+		popup_an_error("Trace: Parameter must be On or Off");
+		return;
+	}
+
+	if ((on && !toggled(TRACING)) || (!on && toggled(TRACING))) {
+		do_toggle(TRACING);
+		if (!on) {
+			action_output("Tracing stopped.");
 		}
 	}
 
-	if (both) {
-		if (on && *num_params > 1)
-		    	trace_set_trace_file(params[1]);
-		if ((on && !toggled(DS_TRACE)) || (!on && toggled(DS_TRACE)))
-			do_toggle(DS_TRACE);
-		if ((on && !toggled(EVENT_TRACE)) ||
-		    (!on && toggled(EVENT_TRACE)))
-			do_toggle(EVENT_TRACE);
-	} else if ((on && !toggled(tg)) || (!on && toggled(tg))) {
-		if (on && *num_params > 2)
-		    	trace_set_trace_file(params[2]);
-		do_toggle(tg);
+	if (tracefile_name != NULL) {
+		if (ia_cause == IA_COMMAND) {
+			action_output("Trace file is %s.", tracefile_name);
+		} else {
+			popup_an_info("Trace file is %s.", tracefile_name);
+		}
 	}
-	if (tracefile_name != NULL)
-		action_output("Trace file is %s", tracefile_name);
 }
 
-/* ScreenTrace(on [filename]|off) */
+/*
+ * ScreenTrace(On)
+ * ScreenTrace(On,filename)			 backwards-compatible
+ * ScreenTrace(On,File,filename)		 preferred
+ * ScreenTrace(On,Printer)
+ * ScreenTrace(On,Printer,"print command")	 Unix
+ * ScreenTrace(On,Printer[,Gdi|WordPad],printername) Windows
+ * ScreenTrace(Off)
+ */
 void
 ScreenTrace_action(Widget w _is_unused, XEvent *event _is_unused,
 	String *params, Cardinal *num_params)
 {
 	Boolean on = False;
+#if defined(_WIN32) /*[*/
+	Boolean is_file = False;
+#endif /*]*/
+	tss_t how = TSS_FILE;
+	ptype_t ptype = P_TEXT;
+	const char *name = NULL;
+	Cardinal px;
 
-	action_debug(Trace_action, event, params, num_params);
+	action_debug(ScreenTrace_action, event, params, num_params);
+
 	if (*num_params == 0) {
-		action_output("Screen tracing is %sabled.",
-		    toggled(SCREEN_TRACE)? "en": "dis");
+		how = trace_get_screentrace_how();
+		if (toggled(SCREEN_TRACE)) {
+			action_output("Screen tracing is enabled, %s \"%s\".",
+			    (how == TSS_FILE)? "file":
+#if !defined(_WIN32) /*[*/
+			    "with print command",
+#else /*]*/
+			    "to printer",
+#endif /*]*/
+			    trace_get_screentrace_name());
+		} else
+			action_output("Screen tracing is disabled.");
 		return;
 	}
-	if (!strcasecmp(params[0], "On")) {
-		on = True;
-	} else if (!strcasecmp(params[0], "Off")) {
+
+	if (!strcasecmp(params[0], "Off")) {
+		if (!toggled(SCREEN_TRACE)) {
+			popup_an_error("Screen tracing is already disabled.");
+			return;
+		}
 		on = False;
 		if (*num_params > 1) {
 			popup_an_error("ScreenTrace(): Too many arguments "
 				"for 'Off'");
 			return;
 		}
-	} else {
+		goto toggle_it;
+	}
+	if (strcasecmp(params[0], "On")) {
 		popup_an_error("ScreenTrace(): Must be 'On' or 'Off'");
 		return;
 	}
 
+	/* Process 'On'. */
+	if (toggled(SCREEN_TRACE)) {
+		popup_an_error("Screen tracing is already enabled.");
+		return;
+	}
+
+	on = True;
+	px = 1;
+
+	if (px >= *num_params) {
+		/*
+		 * No more parameters. Trace to a file, and generate the name.
+		 */
+		goto toggle_it;
+	}
+	if (!strcasecmp(params[px], "File")) {
+	    	px++;
+#if defined(_WIN32) /*[*/
+		is_file = True;
+#endif /*]*/
+	} else if (!strcasecmp(params[px], "Printer")) {
+		px++;
+		how = TSS_PRINTER;
+#if defined(WIN32) /*[*/
+		ptype = P_GDI;
+#endif /*]*/
+	}
+#if defined(_WIN32) /*[*/
+	if (px < *num_params && !strcasecmp(params[px], "Gdi")) {
+		if (is_file) {
+			popup_an_error("ScreenTrace(): Cannot specify "
+				"'File' and 'Gdi'.");
+			return;
+		}
+		px++;
+		how = TSS_PRINTER;
+		ptype = P_GDI;
+	} else if (px < *num_params && !strcasecmp(params[px], "WordPad")) {
+		if (is_file) {
+			popup_an_error("ScreenTrace(): Cannot specify "
+				"'File' and 'WordPad'.");
+			return;
+		}
+		px++;
+		how = TSS_PRINTER;
+		ptype = P_RTF;
+	}
+#endif /*]*/
+	if (px < *num_params) {
+		name = params[px];
+		px++;
+	}
+	if (px < *num_params) {
+		popup_an_error("ScreenTrace(): Too many arguments.");
+		return;
+	}
+	if (how == TSS_PRINTER && name == NULL) {
+#if !defined(_WIN32) /*[*/
+		name = get_resource(ResPrintTextCommand);
+#else /*][*/
+		name = get_resource(ResPrinterName);
+#endif /*]*/
+	}
+
+toggle_it:
 	if ((on && !toggled(SCREEN_TRACE)) || (!on && toggled(SCREEN_TRACE))) {
-		if (on && *num_params > 1)
-		    	trace_set_screentrace_file(params[1]);
+		if (on)
+		    	trace_set_screentrace_file(how, ptype, name);
 		do_toggle(SCREEN_TRACE);
 	}
-	if (screentracefile_name != NULL)
-		action_output("Trace file is %s", screentracefile_name);
+	if (on && !toggled(SCREEN_TRACE)) {
+		return;
+	}
+
+	name = trace_get_screentrace_name();
+	if (name != NULL) {
+		if (on) {
+			if (how == TSS_FILE) {
+				if (ia_cause == IA_COMMAND)
+					action_output("Trace file is %s.",
+						name);
+				else
+					popup_an_info("Trace file is %s.",
+						name);
+			} else {
+				if (ia_cause == IA_COMMAND)
+					action_output("Tracing to %sprinter "
+#if !defined(_WIN32) /*[*/
+						"with command "
+#endif /*]*/
+						"\"%s\".",
+#if !defined(_WIN32) /*[*/
+						"",
+#else /*][*/
+						(ptype == P_RTF)? "RTF ":
+						 ((ptype == P_GDI)? "GDI ":
+						  "? "),
+#endif /*]*/
+						name);
+				else
+					popup_an_info("Tracing to %sprinter "
+#if !defined(_WIN32) /*[*/
+						"with command "
+#endif /*]*/
+						"\"%s\".",
+#if !defined(_WIN32) /*[*/
+						"",
+#else /*][*/
+						(ptype == P_RTF)? "RTF ":
+						 ((ptype == P_GDI)? "GDI ":
+						  "? "),
+#endif /*]*/
+						name);
+			}
+		} else {
+			if (trace_get_screentrace_last_how() == TSS_FILE) {
+				if (ia_cause == IA_COMMAND)
+					action_output("Tracing complete. "
+						"Trace file is %s.",
+						name);
+				else
+					popup_an_info("Tracing complete. "
+						"Trace file is %s.",
+						name);
+			} else {
+				if (ia_cause == IA_COMMAND)
+					action_output("Tracing to printer "
+						"complete.");
+			}
+		}
+	}
 }
 #endif /*]*/
 
@@ -1331,12 +1502,14 @@ Escape_action(Widget w _is_unused, XEvent *event _is_unused, String *params _is_
     Cardinal *num_params _is_unused)
 {
 	action_debug(Escape_action, event, params, num_params);
-	if (!appres.secure && !appres.no_prompt) {
+	if (!appres.secure) {
 	    	host_cancel_reconnect();
 		screen_suspend();
+#if 0 /* this fix is in there for something, but I don't know what */
 #if defined(X3270_SCRIPT) /*[*/
 		abort_script();
 #endif /*]*/
+#endif
 	}
 }
 
@@ -1346,29 +1519,31 @@ popup_an_info(const char *fmt, ...)
 {
     	va_list args;
 	static char vmsgbuf[4096];
-	char *s, *t;
-	Boolean quoted = False;
+	size_t sl;
 
+	/* Expand it. */
 	va_start(args, fmt);
 	(void) vsprintf(vmsgbuf, fmt, args);
 	va_end(args);
 
-	/* Filter out the junk. */
-	for (s = t = vmsgbuf; *s; s++) {
-	    if (*s == '\n') {
-		*t = '\0';
-		break;
-	    } else if (!quoted && *s == '\\') {
-		quoted = True;
-	    } else {
-		*t++ = *s;
-		quoted = False;
-	    }
-	}
-	*t = '\0';
+	/* Remove trailing newlines. */
+	sl = strlen(vmsgbuf);
+	while (sl && vmsgbuf[sl - 1] == '\n')
+		vmsgbuf[--sl] = '\0';
 
-	if (strlen(vmsgbuf))
-		status_push(vmsgbuf);
+	/* Push it out. */
+	if (sl) {
+		if (escaped) {
+			printf("%s\n", vmsgbuf);
+			fflush(stdout);
+		} else {
+			char *s;
+
+			while ((s = strchr(vmsgbuf, '\n')) != NULL)
+				*s = ' ';
+			status_push(vmsgbuf);
+		}
+	}
 }
 
 void
@@ -1407,7 +1582,7 @@ merge_profile(void)
 	fname = getenv(PROFILE_ENV);
 	if (fname == CN || *fname == '\0')
 		fname = DEFAULT_PROFILE;
-	profile_name = do_subst(fname, True, True);
+	profile_name = do_subst(fname, DS_VARS | DS_TILDE);
 	did_read = (read_resource_file(profile_name, False) >= 0);
 	Free(profile_name);
 	return did_read;
@@ -1430,22 +1605,20 @@ start_auto_shortcut(void)
 	char delenv[32 + MAX_PATH];
 	char args[1024];
 	HINSTANCE h;
-	extern char *profile_path; /* XXX */
-
-    	/* Make sure we're on NT. */
-    	if (!is_nt) {
-	    	fprintf(stderr, "Auto-shortcut does not work on Win9x\n");
-		x3270_exit(1);
-	}
+	char *cwd;
 
 	/* Make sure there is a session file. */
 	if (profile_path == CN) {
 		fprintf(stderr, "Can't use auto-shortcut mode without a "
 			"session file\n");
-		x3270_exit(1);
+		fflush(stderr);
+		return;
 	}
 
-	printf("Running auto-shortcut\n"); fflush(stdout);
+#if defined(AS_DEBUG) /*[*/
+	printf("Running auto-shortcut\n");
+	fflush(stdout);
+#endif /*]*/
 
 	/* Read the session file into 's'. */
 	f = fopen(profile_path, "r");
@@ -1454,11 +1627,14 @@ start_auto_shortcut(void)
 		x3270_exit(1);
 	}
 	memset(&s, '\0', sizeof(session_t));
-	if (read_session(f, &s) == 0) {
+	if (read_session(f, &s, NULL) == 0) {
 	    	fprintf(stderr, "%s: invalid format\n", profile_path);
 		x3270_exit(1);
 	}
-	printf("Read in session '%s'\n", profile_path); fflush(stdout);
+#if defined(AS_DEBUG) /*[*/
+	printf("Reading session file '%s'\n", profile_path);
+	fflush(stdout);
+#endif /*]*/
 
 	/* Create the shortcut. */
 	tempdir = getenv("TEMP");
@@ -1467,24 +1643,31 @@ start_auto_shortcut(void)
 		x3270_exit(1);
 	}
 	sprintf(linkpath, "%s\\wcsa%u.lnk", tempdir, getpid());
-	sprintf(exepath, "%s\\%s", instdir, "wc3270.exe");
-	printf("Executable path is '%s'\n", exepath); fflush(stdout);
+	sprintf(exepath, "%s%s", instdir, "wc3270.exe");
+#if defined(AS_DEBUG) /*[*/
+	printf("Executable path is '%s'\n", exepath);
+	fflush(stdout);
+#endif /*]*/
 	if (GetFullPathName(profile_path, MAX_PATH, sesspath, NULL) == 0) {
 	    	fprintf(stderr, "%s: Error %ld\n", profile_path,
 			GetLastError());
 		x3270_exit(1);
 	}
 	sprintf(args, "+S \"%s\"", sesspath);
+	cwd = getcwd(NULL, 0);
 	hres = create_shortcut(&s,		/* session */
 			       exepath,		/* .exe    */
 			       linkpath,	/* .lnk    */
 			       args,		/* args    */
-			       tempdir		/* cwd     */);
+			       cwd		/* cwd     */);
 	if (!SUCCEEDED(hres)) {
 	    	fprintf(stderr, "Cannot create ShellLink '%s'\n", linkpath);
 		x3270_exit(1);
 	}
-	printf("Created ShellLink '%s'\n", linkpath); fflush(stdout);
+#if defined(AS_DEBUG) /*[*/
+	printf("Created ShellLink '%s'\n", linkpath);
+	fflush(stdout);
+#endif /*]*/
 
 	/* Execute it. */
 	sprintf(delenv, "%s=%s", DELENV, linkpath);
@@ -1495,7 +1678,10 @@ start_auto_shortcut(void)
 	    x3270_exit(1);
 	}
 
-	printf("Started ShellLink\n"); fflush(stdout);
+#if defined(AS_DEBUG) /*[*/
+	printf("Started ShellLink\n");
+	fflush(stdout);
+#endif /*]*/
 
 	exit(0);
 }

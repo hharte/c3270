@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2014, Paul Mattes.
+ * Copyright (c) 2013 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -26,63 +26,14 @@
  */
 
 /*
- *	conf.h
- *              System-specific #defines for libraries and library functions.
- *		Automatically generated from conf.h.in by configure.
+ *	fallbacksc.h
+ *		Global declarations for fallbacks.c.
  */
 
-
-/* Libraries. */
-#undef HAVE_LIBNCURSESW
-#undef HAVE_LIBNCURSES
-#undef HAVE_LIBCURSES
-#undef HAVE_LIBREADLINE
-#undef HAVE_LIBSSL
-
-/* Header files. */
-#undef HAVE_NCURSESW_NCURSES_H
-#undef HAVE_NCURSES_NCURSES_H
-#undef HAVE_NCURSES_H
-#undef HAVE_CURSES_H
-#undef HAVE_NCURSESW_TERM_H
-#undef HAVE_NCURSES_TERM_H
-#undef HAVE_TERM_H
-#undef HAVE_SYS_SELECT_H
-#undef HAVE_READLINE_HISTORY_H
-#undef HAVE_PTY_H
-#undef HAVE_LIBUTIL_H
-#undef HAVE_UTIL_H
-#undef HAVE_GETOPT_H
-
-/* Uncommon functions. */
-#undef HAVE_VASPRINTF
-#undef HAVE_FSEEKO
-#undef HAVE_FORKPTY
-#undef HAVE_USE_DEFAULT_COLORS
-
-/* Default pager. */
-#define LESSPATH ""
-#define MOREPATH ""
-
-/* Wide curses. */
-#undef CURSES_WIDE
-
-/* Configuration options. */
-#undef USE_ICONV
-
-/* Broken stuff. */
-#undef BROKEN_NEWTERM
-
-/* Optional parts. */
-#undef X3270_ANSI
-#undef X3270_APL
-#undef X3270_DBCS
-#undef X3270_FT
-#undef X3270_LOCAL_PROCESS
-#undef X3270_MENUS
-#undef X3270_PRINTER
-#undef X3270_SCRIPT
-#undef X3270_TN3270E
-#undef X3270_TRACE
-#undef X3270_IPV6
-#undef X3270_PLUGIN
+#if defined(X3270_DISPLAY) /*[*/
+extern unsigned char common_fallbacks[];
+extern unsigned char color_fallbacks[];
+extern unsigned char mono_fallbacks[];
+#else /*][*/
+extern String fallbacks[];
+#endif /*]*/

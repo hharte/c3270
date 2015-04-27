@@ -6,17 +6,366 @@
  <body>
 <h1>Changes in x3270, c3270, wc3270, s3270, tcl3270, pr3287 and wpr3287 3.3</h1>
 3.3 is the current development line for the x3270 suite.
+<h2>Changes in version 3.3.15ga8, 24. December 2014</h2>
+ <ul>
+  <li>[<i>x3270</i>, <i>wc3270</i>] Improved paste behavior. Patch courtesy of
+   Máximo Castañeda.</li>
+  <li>[all] Added <b>append</b> and <b>replace</b> keywords to the
+   <b>PrintText</b> action to control how existing files are handled.</li>
+  <li>[all] Made <b>Wait(Output)</b> work in NVT mode.</li>
+  <li>[<i>x3270</i>] Fixed security holes in the Print Window Bitmap menu
+   item and the PrintWindow action.</li>
+  <li>[<i>wc3270</i>] Fixed multiple GDI printing problems: captions
+   mis-centered, page overflow with multiple screens per page, "save screens
+   to printer" not working at all.</li>
+ </ul>
+<h2>Changes in version 3.3.15ga7, 14. December 2014</h2>
+ <ul>
+  <li>[<i>wc3270</i>] Fixed some typos in the Session Wizard.</li>
+  <li>[<i>wc3270</i>] Fixed several issues with Notepad editing of
+   miscellaneous resources in the Session Wizard.</li>
+  <li>[<i>wc3270</i>] Allow the printTextOrientation resource to be
+   specified.</li>
+  <li>[<i>x3270</i>] Fixed dialog boxes lost behind the file transfer
+   dialog.</li>
+  <li>[all] Fixed a crash in the <b>Query</b> action.</li>
+ </ul>
+<h2>Changes in version 3.3.15ga6, 28. November 2014</h2>
+ <ul>
+  <li>[<i>wc3270</i>, <i>ws3270</i>] Fixed a bug with the <b>Transfer</b>
+   action ignoring the BufferSize parameter.</li>
+ </ul>
+<h2>Changes in version 3.3.15ga5, 14. October 2014</h2>
+<ul>
+ <li>[all] Allow file transfers to be started when the screen is unformatted
+  and includes space characters.</li>
+ <li>[all] Corrected the documentation for the <b>menuBar</b> resource.</li>
+ <li>[<i>wc3270</i>] Allow the keyword <b>none</b> to be given to the Session
+  Wizard editing menu.</li>
+</ul>
+<h2>Changes in version 3.3.15ga4, 3. October 2014</h2>
+<ul>
+ <li>[all] Fixed a problem with <b>-scriptport</b> connections never being
+  accepted again after a socket error.</li>
+</ul>
+<h2>Changes in version 3.3.15beta3, 19. September 2014</h2>
+<ul>
+ <li>[<i>pr3287</i>] Added an <b>-mpp</b> option to set a non-default Maximum
+  Presentation Position (the maximum line length for unformatted Write
+  commands).</li>
+ <li>[all] Corrected the BINARY and NOCRLF options passed to the CICS version
+  of IND$FILE.</li>
+ <li>[all] Added a <b>--disable-ipv6</b> option to the ./configure script to
+  allow IPv6 support to be explicitly disabled.</li>
+</ul>
+<h2>Changes in version 3.3.15beta2, 12. August 2014</h2>
+<ul>
+ <li>[<i>all</i>] Changed the IND$FILE command to all-uppercase, to make
+  certain hosts happier (found by Máximo Castañeda).</li>
+ <li>[<i>wc3270</i>] Fixed a Cygwin Makefile problem (found by Máximo
+  Castañeda).</li>
+ <li>[all] Fixed some zOS/USS build issues (found by Kevin Morris).</li>
+</ul>
+<h2>Changes in version 3.3.15alpha1, 17. July 2014</h2>
+<ul>
+ <li>[all] Added a <b>newEnviron</b> resource. If set to <b>true</b> (the
+  default), the emulator will respond to the TELNET NEW-ENVIRON option. If set
+  to <b>false</b>, it will not.</b>
+ <li>[<i>wc3270</i>] Fixed a problem where editing an all-users session would
+  result in copying the session to the current user's AppData directory, and
+  re-creating the shortcut would point it to the wrong entry.</li>
+ <li>[<i>wc3270</i>] Added Session Wizard options to copy a session, rename a
+  session, and create a shortcut for a session.</li>
+ <li>[all] Fixed several issues with TN3270E options negotiation (thank you to
+  Máximo Castañeda for pointing these out).</li>
+ <li>[<i>wc3270</i>] Changed the default directory for trace files from the
+  wc3270 AppData directory to the current user's desktop. Also fixed a number
+  of documentation issues in this area.</li>
+ <li>[all] Added a <b>tls</b> resource. If set to <b>false</b>, TLS
+  negotiations from the host will be rejected.</b>
+ <li>[<i>wc3270</i>] Added menu options to start up HTML help and the Session
+  Wizard.</li>
+ <li>[<i>c3270</i>] If there is room, added a line (a row of underscored
+  blanks) between the 3270 display and the OIA.</li>
+ <li>[<i>wc3270</i>] Changed the menu bar to reverse video.</li>
+ <li>[<i>wc3270</i>] Added a <b>Cut</b> action, mapped to Ctrl-x. It is the
+  same as <b>Copy</b>, but it also erases the copied text (in modifiable
+  fields) when it finishes.</li>
+ <li>[<i>wc3270</i>, <i>ws3270</i>] Added support for a separate Windows
+  code page for IND$FILE ASCII file translations, via the <b>ftCodePage</b>
+  resource and the <b>WindowsCodePage=</b> parameter to the <b>Transfer</b>
+  action.</li>
+ <li>[all] Produce a better error message when the host disconnects because the
+  emulator does not support SSL.</li>
+ <li>[<i>wc3270</i>] Added a Session Wizard option to turn on tracing at
+  start-up.</li>
+ <li>[<i>wc3270</i>] Extended the Session Wizard to present a menu of existing
+  sessions to choose from, to permit a session to be deleted, and to edit the
+  free-form settings in the session file with Notepad.</li>
+ <li>[<i>wc3270</i>] Added automatic resizing of the console window to match
+  the model number and oversize.</li>
+ <li>[all] Removed Windows 98 support.</li>
+ <li>[<i>wc3270</i>] Added <b>Esc</b> as an alias for <b>ESCAPE</b> in keymaps.
+  </li>
+ <li>[all] List out the toggle names when a <b>-set</b> or <b>-clear</b>
+  doesn't find a match.</li>
+ <li>[<i>wc3270</i>] Added support for GDI (direct) printers to the
+  <b>PrintText()</b> and <b>ScreenTrace()</b> actions using the new <b>gdi</b>
+  keyword option. Added resources to control GDI printing:
+  <b>printTextOrientation</b>, <b>printTextHorizontalMargin</b> and
+  <b>printTextVerticalMargin</b>.</li>
+</ul>
+<h2>Changes in version 3.3.14ga11, 3. May 2014</h2>
+<ul>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Changed the <b>-xtable</b> option so that
+  the translations are considered transparent data (they are not considered
+  when checking for line wrap or when skipping ASA carriage control
+  characters).</li>
+</ul>
+<h2>Changes in version 3.3.14ga10, 27. April 2014</h2>
+<ul>
+ <li>[<i>x3270</i>] Restored the ability to use the special 3270 fonts with
+  code page 1047.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Backed out the previous change to ignore
+  NULLs (they really are supposed to be considered blanks in unformatted Write
+  commands). Replaced it with a new <b>-skipcc</b> option to ignore ASA
+  carriage control characters at the beginning of each line; it only applies
+  to unformatted Write commands.</li>
+</ul>
+<h2>Changes in version 3.3.14ga9, 13. April 2014</h2>
+<ul>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Fixed a problem with misinterpreting
+  NULL (X'00') characters in unformatted mode as spaces, when they should be
+  ignored. This caused printer output to be shifted and sometimes wrapped.</li>
+ <li>[<i>wc3270</i>] Corrected the <b>Copy()</b> action so the space after a
+  word selected with a double mouse click is not copied to the clipboard.</li>
+ <li>[all 3270] Fixed a crash when disabling tracing after opening the trace
+  file fails.</li>
+</ul>
+<h2>Changes in version 3.3.14beta8, 31. March 2014</h2>
+<ul>
+ <li>[all 3270] Changed the keyboard to unlock when a BIND-IMAGE is received.
+  This matches the behavior of PCOMM and is consistent with some comments found
+  on IBM webpages. The net result is that the keyboard will be unlocked (and
+  scripts may be allowed to proceed) earlier than with previous versions of the
+  emulators. This is good for talking to hosts that don't send an initial Write
+  command (as can happen with CICS); previously this Write was the only trigger
+  for unlocking the keyboard at connect or BIND time. But it is bad if a script
+  implicitly depended on the old behavior. Scripts confused by this change may
+  need to add a <b>Wait(InputField)</b> to cover these cases.</li>
+ <li>[all 3270] Got rid of the <b>E</b> status for keyboard lock in the
+  scripting prompt. The status is now <b>L</b> (locked) or <b>U</b>
+  (unlocked).</li>
+ <li>[all 3270] Added decoding of UNBIND reasons to traces.</li>
+ <li>[all 3270] Increased the number of situations where keyboard input can
+  result in typeahead instead of drops.</li>
+</ul>
+<h2>Changes in version 3.3.14ga7, 8. March 2014</h2>
+<ul>
+ <li>[<i>c3270</i>, <i>wc3270</i></i>] Corrected a problem where the
+  <b>trace on</b> command at the <b>c3270></b> prompt resulted in tracing to
+  a file named <b>on</b>.</li>
+ <li>[<i>c3270</i>, <i>wc3270</i></i>] Reversed the order of keymaps.
+  User-specified keymaps appear first, with later-specified ones before
+  earlier-specified ones, so the override relationships are more obvious.
+  On Windows, this also resolves the rules for ambiguous keymaps -- the first
+  match wins, given the new ordering rules.</li>
+ <li>[<i>wc3270</i></i>] Fixed a problem with printable virtual key events
+  being interpreted incorrectly, even though they were traced correctly, for
+  example, Ctrl-Shift-3.</li>
+ <li>[<i>wc3270</i></i>] Fixed a problem with the <b>RightCtrl</b> modifier
+  in a keymap being interpreted as <b>Ctrl</b>.
+ <li>[<i>wc3270</i>Fixed some man pages that accidentally ended up as html.</li>
+</ul>
+<h2>Changes in version 3.3.14ga6, 23. January 2014</h2>
+<ul>
+ <li>[all] Fixed a problem with displaying text in NVT mode when the host
+  does no TELNET negotiation.</li>
+ <li>[all] Deprecated the <b>dsTrace</b> and <b>eventTrace</b> resources (and
+  associated toggles and x3270 menu options) and replaced them with a new
+  single <b>trace</b> resource and toggle. The old resources and toggles are
+  still available, but are effectively aliases for the new single setting.</li>
+</ul>
+<h2>Changes in version 3.3.14alpha5, 30. December 2013</h2>
+<ul>
+ <li>[<i>c3270</i>, <i>wc3270</i>] Added screen scrolling (saving previous
+  screen contents, to be displayed interactively), controlled by the new
+  <b>Scroll</b> action. <b>Scroll</b>(Backward) (mapped onto PageUp) goes back
+  one screen; <b>Scroll</b>(Forward) (mapped onto PageDown) goes ahead one
+  screen. The <b>Reset</b> action cancels scrolling. The <b>-sl</b>
+  command-line option or <b>scrollLines</b> resource changes the number of
+  lines saved for scrolling from the default of 4096.</li>
+ <li>[<i>x3270</i>] Turned the scrollbar on by default. Mapped the PageUp and
+  PageDown keys to the (new) <b>Scroll</b> action, to scroll up or down one
+  screen, respectively. Modified the <b>Reset</b> action to cancel any
+  screen scrolling.</li>
+ <li>[all Windows] Got everything to build under MSVC again, using either the
+  command line or MS Visual Studio. A Visual Studio solution file is now
+  included in the source tarball. Windows targets also cross-compile again with
+  the latest Cygwin MinGW.</li>
+</ul>
+<h2>Changes in version 3.3.14alpha4, 21. December 2013</h2>
+<ul>
+ <li>[all] Added a <b>printTextScreensPerPage</b> resource to control how many
+  screens of text are displayed per page when tracing screens to the
+  printer.</li>
+ <li>[all] Corrected screen tracing to the printer so it observes the
+ <b>printer.name</b> and <b>printer.command</b> resources.</li>
+</ul>
+<h2>Changes in version 3.3.14alpha3, 16. December 2013</h2>
+<ul>
+ <li>[<i>all</i>, <i>wc3270</i>] Fixed problem with message display during
+  file transfers initiated by scripts.</li>
+ <li>[all] Fixed a problem reading files with the <b>Source</b> action, when
+  the file does not end with a CR or NL.</li>
+</ul>
+<h2>Changes in version 3.3.14alpha2, 4. November 2013</h2>
+<ul>
+ <li>[all] Added support for CICS IND$FILE file transfers.</li>
+</ul>
+<h2>Changes in version 3.3.14alpha1, 30. October 2013</h2>
+<ul>
+ <li>[all] Allow file transfers to start when the screen is unformatted.</li>
+ <li>[all] Fixed a problem with the initial data stream trace snapshot when the
+  screen is unformatted.</li>
+ <li>A wrapper function was put around the Windows <i>snprintf</i> function,
+  to ensure that it always NUL-terminates strings. The lack of such a wrapper
+  could lead to string overflows in some situations.</li>
+ <li>[<i>wc3270</i>] Added the ability to install wc3270 for all users or just
+  for the current
+  user (the old behavior was just the current user). Also extended the
+  installer to allow selective installation of various pieces. The Session
+  Wizard can now create and edit session files and desktop shortcuts for either
+  all users or the current user, and keymaps can be located in either the
+  all-users or current user's AppData directory. Trace files are always left
+  in the current user's AppData directory.</li>
+ <li>[<i>wc3270</i>] wc3270 Session files are now editable from the Windows
+  context menu (right-clicking from explorer).</li>
+ <li>[<i>wc3270</i>] Windows 98 is no longer supported by the wc3270 installer.
+  This is
+  because the installer tool used by wc3270 (Inno Setup) no longer supports
+  Windows 98, not because of any inherent limitation in wc3270. The no-setup
+  .ZIP file can still be used to install wc3270 on Windows 98 by hand. A
+  simple Windows 98-specific installer may be added at some point in the
+  future.</li>
+ <li>[<i>wc3270</i>] Added native select/copy to wc3270. Just highlight with
+  the mouse and press Ctrl-C. The <b>Clear</b> action is still available via
+  Alt-C.</li>
+</ul>
+<h2>Changes in version 3.3.13ga7, 11. September 2013</h2>
+<ul>
+ <li>[<i>wc3270</i>] Fixed a hang when the wc3270 window was closed on XP.</li>
+ <li>[all] Fixed connect() failures on MacOS.</li>
+</ul>
+<h2>Changes in version 3.3.13ga6, 8. September 2013</h2>
+<ul>
+ <li>[all] Corrected a problem with the display of non-display fields
+  (incorrectly observing the colors and graphic rendition).</li>
+ <li>[<i>wpr3287</i>] Added the <b>-tracedir</b> option, just like pr3287.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Added tracing of the <b>-xtable</b>
+  translation table.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Added tracing of the data stream sent to
+  the printer.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Use the same unique trace file name
+  convention as the other emulators.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Added a <b>-crthru</b> option to pass
+  CR orders through to the printer in unformatted 3270 mode, instead of
+  interpreting them.</li>
+</ul>
+<h2>Changes in version 3.3.13beta5, 4. September 2013</h2>
+<ul>
+ <li>[<i>wc3270</i>] Added logic to the Session Wizard to automatically correct
+  old-format UNC printer names, and also fixed some minor bugs in it.</li>
+ <li>[all] Corrected the CGCSGID for code page 1145 (spanish-euro).</li>
+ <li>[all] Second try at getting pr3287/wpr3287 shut down and re-launched
+  correctly.</li>
+</ul>
+<h2>Changes in version 3.3.13beta4, 23. August 2013</h2>
+<ul>
+ <li>[all] Corrected the start/stop of pr3287/wpr3287 printer sessions, so that
+  a new one is not started until the previous one has completely exited.</li>
+</ul>
+<h2>Changes in version 3.3.13beta3, 6. August 2013</h2>
+<ul>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Made sure trace files get flushed for each
+  entry.</li>
+</ul>
+<h2>Changes in version 3.3.13alpha2, 30. July 2013</h2>
+<ul>
+ <li>[all] Fixed a crash when connecting to certain hosts using an SSL tunnel.
+  </li>
+ <li>[all except <i>x3270</i>] Fixed a parsing problem for session files and
+  <b>-xrm</b> options that resulted in doubled backslash characters.</li>
+ <li>[all] Fixed a crash in the <b>Wait(<i>n</i>,seconds)</b> action.</li>
+ <li>[<i>wc3270</i>] Made sure that the wpr3287 process is stopped when the
+  wc3270 window is closed.</li>
+ <li>[<i>wc3270</i>] Fixed new issues created by the previous Windows 8 process
+  creation fix.</li>
+</ul>
+<h2>Changes in version 3.3.13alpha1, 11. July 2013</h2>
+<ul>
+ <li>[<i>wc3270</i>] Fixed some issues with starting Wordpad and wpr3287 on
+  Windows 8.</li>
+ <li>[<i>x3270</i>] Combined the various text screen save/print options into
+  a single menu option, which brings up a dialog box that allows snapshots,
+  continuous saving, save to text, HTML or RichText or directly to the
+  printer.</li>
+ <li>[<i>c3270</i>, <i>wc3270</i>] Added the ability to save a stream of
+  screens to the printer via a menu option or the new <b>Printer</b> option to
+  the <b>ScreenTrace</b> action.</li>
+ <li>[<i>x3270</i>] Added a <b>-secure</b> to simplify invoking secure mode.
+  </li>
+ <li>[<i>c3270</i>, <i>wc3270</i>] Allow <b>-noprompt</b> mode without a host
+  specified on the command line.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Added custom translation tables via the
+  <b>-xtable</b> option.</li>
+ <li>[<i>pr3287</i>, <i>wpr3287</i>] Made <b>-emflush</b> the default.
+  Added a <b>-noemflush</b> to specify the old behavior.</li>
+ <li>[all] Corrected a problem with interpreting the <b>SuppressMap</b>
+  resource. (Courtesy of Marcin Cie&#347;lak.)</li>
+ <li>[<i>wc3270</i>] Corrected the working directory for auto-shortcut mode.
+  </li>
+ <li>[all] Added the <b>-accepthostname</b> command-line option and
+  <b>acceptHostname</b> resource to allow accepting specific names and IP
+  addresses in host certificates, or any name.</li>
+ <li>[all] Turned off variable substitution for all actions under certain
+  circumstances, such as inside macros. It mostly just caused confusion.</li>
+ <li>[all] Added two pseudo-variables for filename substitutions: ${TIMESTAMP}
+  becomes a microsecond-resolution timestamp and ${UNIQUE} guarantees that the
+  filename is unique. Changed the default trace file names to use ${UNIQUE}.
+  </li>
+ <li>[all] Added a number of keywords to the <b>Query</b> action.</li>
+ <li>[all] Made the <b>Open</b> (<b>Connect</b>) and <b>Close</b>
+  (<b>Disconnect</b>) aliases available everywhere.</li>
+ <li>[<i>s3270</i>, <i>ws3270</i>] Enabled the idle command (the
+  <b>idleCommand</b>, <b>idleCommandEnabled</b> and <b>idleTimeout</b>
+  resources).</li>
+ <li>[all] Added support for code page 803 (hebrew-old).</li>
+ <li>[<i>s3270</i>, <i>ws3270</i>] Added a <b>-utf8</b> command-line option and
+  a <b>utf8</b> resource to force local I/O to be encoded as UTF-8.</li>
+ <li>[all] Added a <b>-loginmacro</b> command-line option, and made the
+  existing <b>loginMacro</b> resource work on x3270.</li>
+ <li>[<i>wc3270</i>] Made screen printing via <b>PrintText</b> (Alt-P)
+  asynchronous, so wc3270 can continue processing keyboard events and host
+  output while the screen print is being prepared.</li>
+ <li>[<i>s3270</i>, <i>ws3270</i>, <i>tcl3270</i>] Made 3279 (color) mode the
+  default.</li>
+ <li>[all] Added output to scripts to the event trace file.</li>
+ <li>[<i>wc3270</i/>, <i>ws3270</i>] Now there is a single wc3270 .exe file and
+  a single ws3270 .exe file; they each find the OpenSSL DLLs automatically if
+  they are installed.
+</ul>
 <h2>Changes in version 3.3.12ga13, 2. May 2013</h2>
 <ul>
  <li>[<i>c3270</i>, <i>wc3270</i>] Fixed a start-up crash when the tracing is
   enabled and the menu bar is disasbled.</li>
  <li>[all] Added support for the LF (X'25') format control order.</li>
- <li>[all] Fixed a number of buffer overflow crashes.</li>
-</ul>
+ <li>[All] Fixed a number of buffer overflow crashes.</li>
+ </ul>
 <h2>Changes in version 3.3.12ga12, 1. March 2013</h2>
 <ul>
- <li>[all] Added logic to verify the name in the host certificate.</li>
- <li>[all] Pass all SSL-related parameters to the pr3287 session.</li>
+ <li>[All] Added logic to verify the name in the host certificate.</li>
+ <li>[All] Pass all SSL-related parameters to the pr3287 session.</li>
  <li>[<i>x3270</i>] On the <b>Connect</b> menu, made the recent host list a
   pull-right sub-menu, if there is an ibm_hosts file in use.</li>
  <li>[<i>x3270</i>] The <b>-trace</b> option now implies event tracing as well.
@@ -76,7 +425,7 @@
   file.</li>
  <li>[<i>wc3270</i>] Changed the OpenSSL documentation to refer to the Lite
   version of the OpenSSL DLL.</li>
- <li>[all but <i>wc3270</i> and <i>x3270</i>] Made the <b>hostname</b>
+ <li>[All but <i>wc3270</i> and <i>x3270</i>] Made the <b>hostname</b>
   resource work as-documented: if it is defined, then the emulator will connect
   to that host at start-up.</li>
  <li>[<i>c3270</i>] Added a key sequence for screen printing (<b>Ctrl-a</b>,
@@ -97,7 +446,7 @@
 </ul>
 <h2>Changes in version 3.3.12a3, 2. December 2010</h2>
 <ul>
- <li>[all] Completed the options and resources needed for complete OpenSSL
+ <li>[All] Completed the options and resources needed for complete OpenSSL
   support.</li>
 </ul>
 <h2>Changes in version 3.3.12a2, 25. November 2010</h2>
@@ -396,9 +745,9 @@
 <h3>Changes to specific versions</h3>
 <ul>
   <li>[<b>c3270</b>, <b>s3270</b>, <b>s3270</b>, <b>ws3270</b> and <b>x3270</b>] Added support for session files.</li>
-  <li>[all except <b>wc3270</b> and <b>ws3270</b>] Extended the <b>rtf</b>
+ <li>[All except <b>wc3270</b> and <b>ws3270</b>] Extended the <b>rtf</b>
   option of the <b>PrintText</b> to non-Windows platforms.</li>
-  <li>[all except <b>x3270</b>] Fixed a number of issues with <b>-xrm</b>
+ <li>[All except <b>x3270</b>] Fixed a number of issues with <b>-xrm</b>
   option processing and keymap display when backslash sequences were used.</li>
 </ul>
 <h2>Changes in version 3.3.8p2, 13 December 2008</h2>

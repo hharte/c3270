@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2012, Paul Mattes.
+ * Copyright (c) 2010-2014 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -32,48 +32,46 @@
  */
 
 #include "globals.h"
-#include <signal.h>
-#include "appres.h"
-#include "3270ds.h"
-#include "resources.h"
-#include "ctlr.h"
 
-#include "actionsc.h"
-#include "charsetc.h"
-#include "ctlrc.h"
-#include "gluec.h"
-#include "hostc.h"
-#include "keymapc.h"
-#include "keypadc.h"
-#include "kybdc.h"
-#include "macrosc.h"
-#include "popupsc.h"
-#include "screenc.h"
-#include "togglesc.h"
-#include "tablesc.h"
-#include "trace_dsc.h"
-#include "unicodec.h"
-#include "utf8c.h"
-#include "utilc.h"
-#include "xioc.h"
+#if defined(X3270_MENUS) /*[*/
+# include <signal.h>
+# include "appres.h"
+# include "3270ds.h"
+# include "resources.h"
+# include "ctlr.h"
 
-#include "menubarc.h"
+# include "actionsc.h"
+# include "charsetc.h"
+# include "ctlrc.h"
+# include "gluec.h"
+# include "hostc.h"
+# include "keymapc.h"
+# include "keypadc.h"
+# include "kybdc.h"
+# include "macrosc.h"
+# include "popupsc.h"
+# include "screenc.h"
+# include "togglesc.h"
+# include "tablesc.h"
+# include "trace_dsc.h"
+# include "unicodec.h"
+# include "utf8c.h"
+# include "utilc.h"
+# include "xioc.h"
 
-#if !defined(_WIN32) /*[*/
-# if defined(HAVE_NCURSESW_NCURSES_H) /*[*/
-#  include <ncursesw/ncurses.h>
-# elif defined(HAVE_NCURSES_NCURSES_H) /*][*/
-#  include <ncurses/ncurses.h>
-# elif defined(HAVE_NCURSES_H) /*][*/
-#  include <ncurses.h>
-# else /*][*/
-#  include <curses.h>
+# include "menubarc.h"
+
+# if !defined(_WIN32) /*[*/
+#  if defined(HAVE_NCURSESW_NCURSES_H) /*[*/
+#   include <ncursesw/ncurses.h>
+#  elif defined(HAVE_NCURSES_NCURSES_H) /*][*/
+#   include <ncurses/ncurses.h>
+#  elif defined(HAVE_NCURSES_H) /*][*/
+#   include <ncurses.h>
+#  else /*][*/
+#   include <curses.h>
+#  endif /*]*/
 # endif /*]*/
-#else /*][*/
-# include "windows.h"
-#endif /*]*/
-
-extern int screen_changed; /* XXX: Hack! */
 
 /*
  * The menus look like this:
@@ -86,7 +84,7 @@ extern int screen_changed; /* XXX: Hack! */
  * +----------+
  */
 
-#define MENU_WIDTH 10
+# define MENU_WIDTH 10
 
 typedef void (*menu_callback)(void *);
 
@@ -261,7 +259,6 @@ undraw_menu(cmenu_t *cmenu)
 void
 draw_menu(cmenu_t *cmenu)
 {
-	char *t;
 	int row, col;
 	cmenu_item_t *i;
 
@@ -269,9 +266,8 @@ draw_menu(cmenu_t *cmenu)
 
 	/* Highlight the title. */
 	row = 0;
-	t = cmenu->title;
 	for (col = cmenu->offset;
-	     *t++ && col < cmenu->offset + MENU_WIDTH;
+	     col < cmenu->offset + MENU_WIDTH - 1;
 	     col++) {
 		menu_rv[(row * MODEL_2_COLS) + col] = True;
 	}
@@ -405,8 +401,12 @@ popup_menu(int x, int click)
 	menu_is_up |= MENU_IS_UP;
 }
 
-#if defined(NCURSES_MOUSE_VERSION) || defined(_WIN32) /*[*/
-/* Find a mouse click in the menu hierarchy and act on it. */
+# if defined(NCURSES_MOUSE_VERSION) || defined(_WIN32) /*[*/
+/*
+ * Find a mouse click in the menu hierarchy and act on it.
+ *
+ * Returns True if the coordinates are on a menu somewhere, False otherwise.
+ */
 Boolean
 find_mouse(int x, int y)
 {
@@ -481,9 +481,9 @@ selected:
 	}
 	return True;
 }
-#endif /*]*/
+# endif /*]*/
 
-#if defined(_WIN32) /*[*/
+# if defined(_WIN32) /*[*/
 void
 menu_click(int x, int y)
 {
@@ -494,9 +494,12 @@ menu_click(int x, int y)
 	if (!find_mouse(x, y))
 	    	basic_menu_init();
 }
-#endif /*]*/
+# endif /*]*/
 
-/* Handle a key event for a menu. */
+/*
+ * Handle a key event for a menu.
+ * With ncurses, this can include mouse events.
+ */
 void
 menu_key(int k, ucs4_t u)
 {
@@ -510,7 +513,7 @@ menu_key(int k, ucs4_t u)
 
 	switch (k) {
 
-#if defined(NCURSES_MOUSE_VERSION) /*[*/
+# if defined(NCURSES_MOUSE_VERSION) /*[*/
 	case KEY_MOUSE: {
 		MEVENT m;
 
@@ -524,13 +527,13 @@ menu_key(int k, ucs4_t u)
 			basic_menu_init();
 		break;
 	}
-#endif /*]*/
+# endif /*]*/
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_UP:
-#else /*][*/
+# else /*][*/
 	case VK_UP:
-#endif /*]*/
+# endif /*]*/
 		i = current_item;
 		if (current_item && current_item->prev) {
 			current_item = current_item->prev;
@@ -544,11 +547,11 @@ menu_key(int k, ucs4_t u)
 		}
 		break;
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_DOWN:
-#else /*][*/
+# else /*][*/
 	case VK_DOWN:
-#endif /*]*/
+# endif /*]*/
 		i = current_item;
 		if (current_item && current_item->next) {
 			current_item = current_item->next;
@@ -562,11 +565,11 @@ menu_key(int k, ucs4_t u)
 		}
 		break;
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_LEFT:
-#else /*][*/
+# else /*][*/
 	case VK_LEFT:
-#endif /*]*/
+# endif /*]*/
 		undraw_menu(current_menu);
 		if (current_menu->prev)
 			current_menu = current_menu->prev;
@@ -579,11 +582,11 @@ menu_key(int k, ucs4_t u)
 		draw_menu(current_menu);
 		break;
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_RIGHT:
-#else /*][*/
+# else /*][*/
 	case VK_RIGHT:
-#endif /*]*/
+# endif /*]*/
 		undraw_menu(current_menu);
 		if (current_menu->next)
 			current_menu = current_menu->next;
@@ -596,11 +599,11 @@ menu_key(int k, ucs4_t u)
 		draw_menu(current_menu);
 		break;
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_HOME:
-#else /*][*/
+# else /*][*/
 	case VK_HOME:
-#endif /*]*/
+# endif /*]*/
 		if (current_item) {
 			current_item = current_menu->items;
 			while (current_item && !current_item->enabled) {
@@ -610,11 +613,11 @@ menu_key(int k, ucs4_t u)
 		}
 		break;
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_END:
-#else /*][*/
+# else /*][*/
 	case VK_END:
-#endif /*]*/
+# endif /*]*/
 		i = current_item;
 		while (current_item) {
 			current_item = current_item->next;
@@ -625,11 +628,11 @@ menu_key(int k, ucs4_t u)
 		draw_menu(current_menu);
 		break;
 
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
 	case KEY_ENTER:
-#else /*][*/
+# else /*][*/
 	case VK_RETURN:
-#endif /*]*/
+# endif /*]*/
 		selected = True;
 		break;
 
@@ -739,19 +742,23 @@ fm_print(void *ignored _is_unused)
 	push_macro("PrintText", False);
 }
 
+# if defined(X3270_FT) /*[*/
 static void
 fm_xfer(void *ignored _is_unused)
 {
 	push_macro("Escape() Transfer()", False);
 }
+# endif /*]*/
 
+# if defined(X3270_TRACE) /*[*/
 static void
 fm_trace(void *ignored _is_unused)
 {
-	if (toggled(DS_TRACE) || toggled(EVENT_TRACE))
+	if (toggled(TRACING)) {
 		push_macro("Trace(off)", False);
-	else
+	} else {
 		push_macro("Trace(on)", False);
+	}
 }
 
 static void
@@ -764,10 +771,46 @@ fm_screentrace(void *ignored _is_unused)
 }
 
 static void
+fm_screentrace_printer(void *ignored _is_unused)
+{
+	if (toggled(SCREEN_TRACE))
+		push_macro("ScreenTrace(off)", False);
+	else
+		push_macro("ScreenTrace(on,printer,gdi)", False);
+}
+# endif /*]*/
+
+static void
 fm_keymap(void *ignored _is_unused)
 {
     	push_macro("Show(keymap)", False);
 }
+
+# if defined(_WIN32) /*[*/
+static void
+fm_help(void *ignored _is_unused)
+{
+	start_html_help();
+}
+
+static void
+fm_wizard(void *session)
+{
+	char *cmd;
+
+	if (session != NULL) {
+		cmd = xs_buffer("start \"wc3270 Session Wizard\" "
+			"\"%swc3270wiz.exe\" -e \"%s\"", instdir,
+			(char *)session);
+	} else {
+		cmd = xs_buffer("start \"wc3270 Session Wizard\" "
+			"\"%swc3270wiz.exe\"", instdir);
+	}
+	system(cmd);
+	Free(cmd);
+	screen_fixup(); /* get back mouse events */
+}
+# endif /*]*/
 
 static void
 fm_disconnect(void *ignored _is_unused)
@@ -787,10 +830,20 @@ typedef enum {
     FM_STATUS,
     FM_PROMPT,
     FM_PRINT,
+# if defined(X3270_FT) /*[*/
     FM_XFER,
+# endif /*]*/
+# if defined(X3270_TRACE) /*[*/
     FM_TRACE,
     FM_SCREENTRACE,
+    FM_SCREENTRACE_PRINTER,
+# endif /*]*/
     FM_KEYMAP,
+# if defined(_WIN32) /*[*/
+    FM_HELP,
+    FM_WIZARD,
+    FM_WIZARD_SESS,
+# endif /*]*/
     FM_DISC,
     FM_QUIT,
     FM_COUNT
@@ -799,16 +852,26 @@ cmenu_item_t *file_menu_items[FM_COUNT];
 char *file_menu_names[FM_COUNT] = {
     "Copyright",
     "Status",
-#if !defined(_WIN32) /*[*/
+# if !defined(_WIN32) /*[*/
     "c3270> Prompt",
-#else /*][*/
+# else /*][*/
     "wc3270> Prompt",
-#endif /*]*/
+# endif /*]*/
     "Print Screen",
+# if defined(X3270_FT) /*[*/
     "File Transfer",
+# endif /*]*/
+# if defined(X3270_TRACE) /*[*/
     "Enable Tracing",
     "Save Screen Images in File",
+    "Save Screen Images to Printer",
+# endif /*]*/
     "Display Keymap",
+# if defined(_WIN32) /*[*/
+    "Help",
+    "Session Wizard",
+    "Edit Session",
+# endif /*]*/
     "Disconnect",
     "Quit"
 };
@@ -817,10 +880,20 @@ menu_callback file_menu_actions[FM_COUNT] = {
     fm_status,
     fm_prompt,
     fm_print,
+# if defined(X3270_FT) /*[*/
     fm_xfer,
+# endif /*]*/
+# if defined(X3270_TRACE) /*[*/
     fm_trace,
     fm_screentrace,
+    fm_screentrace_printer,
+# endif /*]*/
     fm_keymap,
+# if defined(_WIN32) /*[*/
+    fm_help,
+    fm_wizard,
+    fm_wizard,
+# endif /*]*/
     fm_disconnect,
     fm_quit
 };
@@ -886,10 +959,27 @@ menu_init(void)
 
 	file_menu = add_menu("File");
 	for (j = 0; j < FM_COUNT; j++) {
-	    	if (appres.no_prompt && j == FM_PROMPT)
+	    	if (appres.secure && j == FM_PROMPT) {
 		    	continue;
-		file_menu_items[j] = add_item(file_menu, file_menu_names[j],
-			file_menu_actions[j], NULL);
+		}
+#if defined(WC3270) /*[*/
+		if (j == FM_WIZARD_SESS && profile_path == NULL) {
+			continue;
+		}
+		if (j == FM_WIZARD_SESS) {
+			char *text;
+
+			text = xs_buffer("Edit Session %s",
+				profile_path);
+
+			file_menu_items[j] = add_item(file_menu,
+			    text, file_menu_actions[j], profile_path);
+		} else
+#endif /*]*/
+		{
+			file_menu_items[j] = add_item(file_menu,
+				file_menu_names[j], file_menu_actions[j], NULL);
+		}
 	}
 	options_menu = add_menu("Options");
 	for (j = 0; j < OM_COUNT; j++) {
@@ -950,21 +1040,27 @@ menubar_retoggle(struct toggle *t, int ix)
 		Free(s);
 		return;
 	}
-	if (ix == EVENT_TRACE || ix == DS_TRACE) {
+# if defined(X3270_TRACE) /*[*/
+	if (ix == TRACING) {
 		s = xs_buffer("%sable Tracing",
-			(toggled(EVENT_TRACE) || toggled(DS_TRACE))?
-			"Dis": "En");
+			(toggled(TRACING))? "Dis": "En");
 		rename_item(file_menu_items[FM_TRACE], s);
 		Free(s);
 	}
 	if (ix == SCREEN_TRACE) {
-	    	if (toggled(SCREEN_TRACE))
+	    	if (toggled(SCREEN_TRACE)) {
 			rename_item(file_menu_items[FM_SCREENTRACE],
 				"Stop Saving Screen Images");
-		else
+			enable_item(file_menu_items[FM_SCREENTRACE_PRINTER],
+				False);
+		} else {
 			rename_item(file_menu_items[FM_SCREENTRACE],
 				"Save Screen Images in File");
+			enable_item(file_menu_items[FM_SCREENTRACE_PRINTER],
+				True);
+		}
 	}
+# endif /*]*/
 }
 
 /*
@@ -1004,10 +1100,10 @@ map_acs(unsigned char c, ucs4_t *u, unsigned char *is_acs)
 		}
 		return;
 	} else
-#if !defined(_WIN32) /*[*/
-# if defined(CURSES_WIDE) /*[*/
+# if !defined(_WIN32) /*[*/
+#  if defined(CURSES_WIDE) || defined(_WIN32) /*[*/
 	       if (appres.acs)
-# endif /*]*/
+#  endif /*]*/
 	{
 		/* ncurses ACS. */
 	    	*is_acs = 1;
@@ -1055,11 +1151,11 @@ map_acs(unsigned char c, ucs4_t *u, unsigned char *is_acs)
 			break;
 		}
 	}
-#endif /*]*/
-#if defined(CURSES_WIDE) || defined(_WIN32) /*[*/
-# if !defined(_WIN32) /*[*/
-       else
 # endif /*]*/
+# if defined(CURSES_WIDE) || defined(_WIN32) /*[*/
+#  if !defined(_WIN32) /*[*/
+       else
+#  endif /*]*/
        {
 	   	/* Unicode. */
 		*is_acs = 0;
@@ -1105,7 +1201,7 @@ map_acs(unsigned char c, ucs4_t *u, unsigned char *is_acs)
 			break;
 		}
        }
-#endif /*]*/
+# endif /*]*/
 }
 
 void
@@ -1113,3 +1209,5 @@ Menu_action(Widget w, XEvent *event, String *params, Cardinal *num_params)
 {
 	popup_menu(0, False);
 }
+
+# endif /*]*/

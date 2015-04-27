@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1995-2009, Paul Mattes.
+ * Copyright (c) 1995-2009, 2013 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -30,11 +30,6 @@
  *		Global declarations for print.c.
  */
 
-typedef enum { P_TEXT, P_HTML, P_RTF } ptype_t;
-#define FPS_EVEN_IF_EMPTY	0x1
-#define FPS_MODIFIED_ITALIC	0x2
-extern Boolean fprint_screen(FILE *f, ptype_t ptype, unsigned opts,
-    char *caption);
 extern void PrintText_action(Widget w, XEvent *event, String *params,
     Cardinal *num_params);
 extern void PrintWindow_action(Widget w, XEvent *event, String *params,
@@ -45,4 +40,3 @@ extern void print_window_option(Widget w, XtPointer client_data,
     XtPointer call_data);
 extern void save_text_option(Widget w, XtPointer client_data,
     XtPointer call_data);
-

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1999-2009, Paul Mattes.
+ * Copyright (c) 1999-2009, 2013-2014 Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -25,11 +25,11 @@
  * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include "localdefs.h"
-
-extern String fallbacks[];
+#include "globals.h"
+/*#include <stdio.h>*/
+/*#include <string.h>*/
+/*#include "localdefs.h"*/
+#include "fallbacksc.h"
 
 /* s3270 substitute Xt resource database. */
 
@@ -90,6 +90,7 @@ static struct {
 	{ "message.terminalName",       "Terminal name:" },
 	{ "message.tn3270eNoOpts",      "No TN3270E options" },
 	{ "message.tn3270eOpts",        "TN3270E options:" },
+	{ "message.unboundMode",	"unbound mode" },
 	{ "message.unnegotiated",       "TELNET negotiation incomplete" },
 	{ "message.unverified",       "not verified" },
 #if defined(_WIN32) /*[*/

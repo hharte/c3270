@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2000-2012, Paul Mattes.
+ * Copyright (c) 2000-2013, Paul Mattes.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,6 +48,7 @@
 #include "macrosc.h"
 #include "popupsc.h"
 #include "screenc.h"
+#include "scrollc.h"
 #include "tablesc.h"
 #include "trace_dsc.h"
 #include "unicodec.h"
@@ -57,9 +58,15 @@
 
 #include "menubarc.h"
 
-/* The usual x3270 'COLS' variable is cCOLS in c3270. */
+/*
+ * The usual x3270 COLS variable (current number of columns in the 3270
+ * display) is called cCOLS in c3270, to avoid a conflict with curses COLS (the
+ * number of columns on the physical termal). For c3270, globals.h #defines
+ * COLS as cCOLS, so common code can use COLS transparently -- everywhere but
+ * here. In this module, we #undef COLS, after #including globals.h but before
+ * #including curses.h, and we use (curses) COLS and (c3270) cCOLS explicitly.
+ */
 #undef COLS
-extern int cCOLS;
 
 #if defined(HAVE_NCURSESW_NCURSES_H) /*[*/
 # include <ncursesw/ncurses.h>
@@ -82,7 +89,9 @@ extern int cCOLS;
 #define cursesCOLS	COLS
 #define cursesLINES	LINES
 
-#define STATUS_PUSH_MS	5000
+#define STATUS_SCROLL_START_MS	1500
+#define STATUS_SCROLL_MS	100
+#define STATUS_PUSH_MS		5000
 
 #define CM (60*10)	/* csec per minute */
 
@@ -196,11 +205,13 @@ static Boolean curses_alt = False;
 #if defined(HAVE_USE_DEFAULT_COLORS) /*[*/
 static Boolean default_colors = False;
 #endif /*]*/
+static Boolean screen_initted = False;
 
-static void kybd_input(void);
+static void kybd_input(unsigned long fd, ioid_t id);
 static void kybd_input2(int k, ucs4_t ucs4, int alt);
 static void draw_oia(void);
 static void screen_connect(Boolean connected);
+static void status_half_connect(Boolean ignored);
 static void status_connect(Boolean ignored);
 static void status_3270_mode(Boolean ignored);
 static void status_printer(Boolean on);
@@ -292,19 +303,22 @@ screen_init(void)
 	init_user_attribute_colors();
 }
 
-/* Really initialize the screen. */
+/*
+ * Finish screen initialization, when a host connects or when we go into
+ * 'zombie' mode (no prompt, no connection).
+ */
 static void
-screen_connect(Boolean connected)
+finish_screen_init(void)
 {
-	static Boolean initted = False;
 	int want_ov_rows = ov_rows;
 	int want_ov_cols = ov_cols;
 	Boolean oversize = False;
 	char *cl;
 
-	if (initted || !connected)
-	    	return;
-	initted = True;
+	if (screen_initted)
+		return;
+
+	screen_initted = True;
 
 	/* Clear the (original) screen first. */
 #if defined(C3270_80_132) /*[*/
@@ -320,7 +334,6 @@ screen_connect(Boolean connected)
 	(void) setupterm(NULL, fileno(stdout), NULL);
 	if ((cl = tigetstr("clear")) != NULL)
 	    	putp(cl);
-	printf("[c3270]\n\n");
 
 #if !defined(C3270_80_132) /*[*/
 	/* Initialize curses. */
@@ -444,6 +457,7 @@ screen_connect(Boolean connected)
 	}
 
 	/* Set up callbacks for state changes. */
+	register_schange(ST_HALF_CONNECT, status_half_connect);
 	register_schange(ST_CONNECT, status_connect);
 	register_schange(ST_3270_MODE, status_3270_mode);
 	register_schange(ST_PRINTER, status_printer);
@@ -535,7 +549,18 @@ screen_connect(Boolean connected)
 	ctlr_init(-1);
 	ctlr_reinit(-1);
 
+	/* Set up the scrollbar. */
+	scroll_init();
+
 	screen_init2();
+}
+
+/* When the host connects, really initialize the screen. */
+static void
+screen_connect(Boolean connected)
+{
+	if (connected && !screen_initted)
+	    	finish_screen_init();
 }
 
 /* Configure the TTY settings for a curses screen. */
@@ -824,6 +849,10 @@ calc_attrs(int baddr, int fa_addr, int fa)
 {
     	int fg, bg, gr, a;
 
+	if (FA_IS_ZERO(fa)) {
+		return color_from_fa(fa);
+	}
+
 	/* Compute the color. */
 
 	/*
@@ -888,7 +917,6 @@ screen_disp(Boolean erasing _is_unused)
 	int row, col;
 	int field_attrs;
 	unsigned char fa;
-	extern Boolean screen_alt;
 	struct screen_spec *cur_spec;
 #if defined(X3270_DBCS) /*[*/
 	enum dbcs_state d;
@@ -932,24 +960,27 @@ screen_disp(Boolean erasing _is_unused)
 
 	/* If the menubar is separate, draw it first. */
 	if (screen_yoffset) {
-	    	ucs4_t u;
+	    	ucs4_t u = 0;
 		Boolean highlight;
 		unsigned char acs;
 		int norm, high;
 
 		if (menu_is_up) {
 			if (appres.m3279) {
-				norm = get_color_pair(HOST_COLOR_NEUTRAL_WHITE,
-					HOST_COLOR_NEUTRAL_BLACK);
-				high = get_color_pair(HOST_COLOR_NEUTRAL_BLACK,
-					HOST_COLOR_NEUTRAL_WHITE);
+				norm = get_color_pair(COLOR_WHITE, COLOR_BLACK);
+				high = get_color_pair(COLOR_BLACK, COLOR_WHITE);
 			} else {
-				norm = defattr;
-				high = attrset(defattr | A_BOLD);
+				norm = defattr & ~A_BOLD;
+				high = defattr | A_BOLD;
 			}
 		} else {
-			norm = defattr & ~A_BOLD;
-			high = defattr & ~A_BOLD;
+			if (appres.m3279) {
+				norm = get_color_pair(COLOR_WHITE, COLOR_BLACK);
+				high = get_color_pair(COLOR_WHITE, COLOR_BLACK);
+			} else {
+				norm = defattr & ~A_BOLD;
+				high = defattr & ~A_BOLD;
+			}
 		}
 
 		for (row = 0; row < screen_yoffset; row++) {
@@ -992,9 +1023,9 @@ screen_disp(Boolean erasing _is_unused)
 			int attr_mask =
 			    toggled(UNDERSCORE)? (int)~A_UNDERLINE: -1;
 			Boolean is_menu = False;
-			ucs4_t u;
-			Boolean highlight;
-			unsigned char acs;
+			ucs4_t u = 0;
+			Boolean highlight = False;
+			unsigned char acs = 0;
 
 			if (flipped)
 				move(row + screen_yoffset, cCOLS-1 - col);
@@ -1157,7 +1188,7 @@ static unsigned long eto = 0L;
 static Boolean meta_escape = False;
 
 static void
-escape_timeout(void)
+escape_timeout(ioid_t id _is_unused)
 {
 	trace_event("Timeout waiting for key following Escape, processing "
 	    "separately\n");
@@ -1168,7 +1199,7 @@ escape_timeout(void)
 
 /* Keyboard input. */
 static void
-kybd_input(void)
+kybd_input(unsigned long fd _is_unused, ioid_t id _is_unused)
 {
 	int k = 0;		/* KEY_XXX, or 0 */
 	ucs4_t ucs4 = 0;	/* input character, or 0 */
@@ -1177,7 +1208,9 @@ kybd_input(void)
 
 	for (;;) {
 		volatile int alt = 0;
+#if defined(X3270_TRACE) /*[*/
 		char dbuf[128];
+#endif /*]*/
 #if defined(CURSES_WIDE) /*[*/
 		wint_t wch;
 		size_t sz;
@@ -1191,15 +1224,18 @@ kybd_input(void)
 #else /*][*/
 		k = wgetch(stdscr);
 #endif /*]*/
+#if defined(X3270_TRACE) /*[*/
 		trace_event("k=%d "
-#if defined(CURSES_WIDE) /*[*/
+# if defined(CURSES_WIDE) /*[*/
 			            "wch=%u "
+# endif /*]*/
+				              "\n",
+			                            k
+# if defined(CURSES_WIDE) /*[*/
+			                             , wch
+# endif /*]*/
+			                                  );
 #endif /*]*/
-			                     , k
-#if defined(CURSES_WIDE) /*[*/
-			                        , wch
-#endif /*]*/
-			                             );
 		if (k == ERR) {
 			if (first) {
 				if (failed_first) {
@@ -1242,7 +1278,7 @@ kybd_input(void)
 			wcs[0] = wch;
 			wcs[1] = 0;
 			sz = wcstombs(mbs, wcs, sizeof(mbs));
-			if (sz < 0) {
+			if (sz == (size_t)-1) {
 				trace_event("Invalid input wchar 0x%x\n", wch);
 				return;
 			}
@@ -1519,7 +1555,10 @@ screen_resume(void)
 	 */
 	if ((cl = tigetstr("clear")) != NULL)
 	    	putp(cl);
-	printf("[c3270]\n\n");
+
+	/* Finish screen initialization. */
+	if (!screen_initted)
+	    	finish_screen_init();
 
 #if defined(C3270_80_132) /*[*/
 	if (def_screen != alt_screen && curses_alt) {
@@ -1576,17 +1615,22 @@ static enum keytype oia_compose_keytype = KT_STD;
 static char oia_lu[LUCNT+1];
 static char oia_timing[6]; /* :ss.s*/
 
-static char *status_msg = "X Disconnected";
+static char *status_msg = "X Not Connected";
 static char *saved_status_msg = NULL;
-static unsigned long saved_status_timeout;
+static ioid_t saved_status_timeout = NULL_IOID;
+static ioid_t oia_scroll_timeout = NULL_IOID;
 
 static void
 cancel_status_push(void)
 {
     	saved_status_msg = NULL;
-	if (saved_status_timeout) {
+	if (saved_status_timeout != NULL_IOID) {
 	    	RemoveTimeOut(saved_status_timeout);
-		saved_status_timeout = 0;
+		saved_status_timeout = NULL_IOID;
+	}
+	if (oia_scroll_timeout != NULL_IOID) {
+		RemoveTimeOut(oia_scroll_timeout);
+		oia_scroll_timeout = NULL_IOID;
 	}
 }
 
@@ -1603,11 +1647,24 @@ status_insert_mode(Boolean on)
 }
 
 static void
-status_pop(void)
+status_pop(ioid_t id _is_unused)
 {
     	status_msg = saved_status_msg;
 	saved_status_msg = NULL;
-	saved_status_timeout = 0;
+	saved_status_timeout = NULL_IOID;
+}
+
+static void
+oia_scroll(ioid_t id _is_unused)
+{
+	status_msg++;
+	if (strlen(status_msg) > 35)
+		oia_scroll_timeout = AddTimeOut(STATUS_SCROLL_MS,
+			oia_scroll);
+	else {
+		saved_status_timeout = AddTimeOut(STATUS_PUSH_MS, status_pop);
+		oia_scroll_timeout = NULL_IOID;
+	}
 }
 
 void
@@ -1616,12 +1673,18 @@ status_push(char *msg)
     	if (saved_status_msg != NULL) {
 	    	/* Already showing something. */
 	    	RemoveTimeOut(saved_status_timeout);
+		saved_status_timeout = NULL_IOID;
 	} else {
 	    	saved_status_msg = status_msg;
 	}
 
-	saved_status_timeout = AddTimeOut(STATUS_PUSH_MS, status_pop);
 	status_msg = msg;
+
+	if (strlen(msg) > 35)
+		oia_scroll_timeout = AddTimeOut(STATUS_SCROLL_START_MS,
+			oia_scroll);
+	else
+		saved_status_timeout = AddTimeOut(STATUS_PUSH_MS, status_pop);
 }
 
 void
@@ -1655,7 +1718,7 @@ status_reset(void)
     	cancel_status_push();
 
 	if (!CONNECTED)
-	    	status_msg = "X Disconnected";
+	    	status_msg = "X Not Connected";
 	else if (kybdlock & KL_ENTER_INHIBIT)
 		status_msg = "X Inhibit";
 	else if (kybdlock & KL_DEFERRED_UNLOCK)
@@ -1712,6 +1775,20 @@ status_lu(const char *lu)
 }
 
 static void
+status_half_connect(Boolean half_connected)
+{
+	if (half_connected) {
+		/* Push the 'Connecting' status under whatever is popped up. */
+		if (saved_status_msg != NULL)
+			saved_status_msg = "X Connecting";
+		else
+			status_msg = "X Connecting";
+		oia_boxsolid = False;
+		status_secure = SS_INSECURE;
+	}
+}
+
+static void
 status_connect(Boolean connected)
 {
     	cancel_status_push();
@@ -1733,7 +1810,7 @@ status_connect(Boolean connected)
 #endif /*]*/
 	} else {
 		oia_boxsolid = False;
-		status_msg = "X Disconnected";
+		status_msg = "X Not Connected";
 		status_secure = SS_INSECURE;
 	}       
 }
@@ -1779,7 +1856,21 @@ status_untiming(void)
     	oia_timing[0] = '\0';
 }
 
-/*static*/ void
+void
+status_scrolled(int n)
+{
+	static char ssbuf[128];
+
+	cancel_status_push();
+	if (n) {
+		snprintf(ssbuf, sizeof(ssbuf), "X Scrolled %d", n);
+		status_msg = ssbuf;
+	} else {
+	    	status_msg = "";
+	}
+}
+
+static void
 draw_oia(void)
 {
 	int rmargin;
@@ -1845,6 +1936,21 @@ draw_oia(void)
 
 */
 
+	/*
+	 * If there is at least one black line between the 3270 display and the
+	 * OIA, draw a row of underlined blanks above the OIA. This is
+	 * something c3270 can do that wc3270 cannot, since Windows consoles
+	 * can't do underlining.
+	 */
+	if (status_row > screen_yoffset + maxROWS) {
+		int i;
+		(void) attrset(A_UNDERLINE | defattr);
+		move(status_row - 1, 0);
+		for (i = 0; i < rmargin; i++) {
+			printw(" ");
+		}
+	}
+
 	(void) attrset(A_REVERSE | defattr);
 	mvprintw(status_row, 0, "4");
 	(void) attrset(A_UNDERLINE | defattr);
@@ -1875,8 +1981,8 @@ draw_oia(void)
 	if (status_secure != SS_INSECURE) {
 	    	if (appres.m3279)
 			(void) attrset(get_color_pair(defcolor_offset +
-				    (status_secure == SS_SECURE)?
-					COLOR_GREEN: COLOR_YELLOW,
+				    ((status_secure == SS_SECURE)?
+					COLOR_GREEN: COLOR_YELLOW),
 				    bg_color) | A_BOLD);
 		else
 		    	(void) attrset(A_BOLD);

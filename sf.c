@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1994-2010, Paul Mattes.
+ * Copyright (c) 1994-2010, 2013 Paul Mattes.
  * Copyright (c) 2004, Don Russell.
  * All rights reserved.
  * 
@@ -53,7 +53,8 @@
 #include "kybdc.h"
 #include "screenc.h"
 #include "seec.h"
-#include "sfc.h"
+#include "sfc.h"	/* has to come before rpqc.h */
+#include "rpqc.h"
 #include "tablesc.h"
 #include "telnetc.h"
 #include "trace_dsc.h"
@@ -67,12 +68,6 @@
 #define Xr_3279_2	0x000a02e5
 #define Yr_3279_2	0x0002006f
 
-/* Externals: ctlr.c */
-extern Boolean  screen_alt;
-extern unsigned char reply_mode;
-extern int      crm_nattr;
-extern unsigned char crm_attr[];
-
 /* Statics */
 static Boolean  qr_in_progress = False;
 static enum pds sf_read_part(unsigned char buf[], unsigned buflen);
@@ -84,13 +79,11 @@ static void query_reply_start(void);
 static void do_query_reply(unsigned char code);
 static void query_reply_end(void);
 
-typedef void qr_single_fn_t(void);
 typedef Boolean qr_multi_fn_t(unsigned *subindex, Boolean *more);
 
 static qr_single_fn_t do_qr_summary, do_qr_usable_area, do_qr_alpha_part,
 	do_qr_charsets, do_qr_color, do_qr_highlighting, do_qr_reply_modes,
 	do_qr_imp_part, do_qr_null;
-extern qr_single_fn_t do_qr_rpqnames;
 #if defined(X3270_DBCS) /*[*/
 static qr_single_fn_t do_qr_dbcs_asia;
 #endif /*]*/
@@ -242,7 +235,9 @@ sf_read_part(unsigned char buf[], unsigned buflen)
 	unsigned char partition;
 	unsigned i;
 	int any = 0;
+#if defined(X3270_TRACE) /*[*/
 	const char *comma = "";
+#endif /*]*/
 
 	if (buflen < 5) {
 		trace_ds(" error: field length %d too small\n", buflen);
@@ -287,12 +282,14 @@ sf_read_part(unsigned char buf[], unsigned buflen)
 				trace_ds(")\n");
 				do_query_reply(QR_NULL);
 			} else {
+#if defined(X3270_TRACE) /*[*/
 				for (i = 6; i < buflen; i++) {
 					trace_ds("%s%s", comma,
 					    see_qcode(buf[i]));
 					comma = ",";
 				}
 				trace_ds(")\n");
+#endif /*]*/
 				for (i = 0; i < NSR; i++) {
 					if (memchr((char *)&buf[6],
 						   (char)replies[i].code,
@@ -312,12 +309,14 @@ sf_read_part(unsigned char buf[], unsigned buflen)
 			}
 			break;
 		    case SF_RPQ_EQUIV:
+#if defined(X3270_TRACE) /*[*/
 			trace_ds("Equivlent+List(");
 			for (i = 6; i < buflen; i++) {
 				trace_ds("%s%s", comma, see_qcode(buf[i]));
 				comma = ",";
 			}
 			trace_ds(")\n");
+#endif /*]*/
 			for (i = 0; i < NSR; i++)
 #if defined(X3270_DBCS) /*[*/
 				if (dbcs || replies[i].code != QR_DBCS_ASIA)
@@ -401,7 +400,9 @@ sf_set_reply_mode(unsigned char buf[], int buflen)
 {
 	unsigned char partition;
 	int i;
+#if defined(X3270_TRACE) /*[*/
 	const char *comma = "(";
+#endif /*]*/
 
 	if (buflen < 5) {
 		trace_ds(" error: wrong field length %d\n", buflen);
@@ -435,7 +436,9 @@ sf_set_reply_mode(unsigned char buf[], int buflen)
 		for (i = 5; i < buflen; i++) {
 			crm_attr[i - 5] = buf[i];
 			trace_ds("%s%s", comma, see_efa_only(buf[i]));
+#if defined(X3270_TRACE) /*[*/
 			comma = ",";
+#endif /*]*/
 		}
 		trace_ds("%s\n", crm_nattr ? ")" : "");
 	}
@@ -448,7 +451,9 @@ sf_create_partition(unsigned char buf[], int buflen)
 	unsigned char pid;
 	unsigned char uom;		/* unit of measure */
 	unsigned char am;		/* addressing mode */
+#if defined(X3270_TRACE) /*[*/
 	unsigned char flags;		/* flags */
+#endif /*]*/
 	unsigned short h;		/* height of presentation space */
 	unsigned short w;		/* width of presentation space */
 	unsigned short rv;		/* viewport origin row */
@@ -502,11 +507,13 @@ sf_create_partition(unsigned char buf[], int buflen)
 		am = 0;
 	}
 
+#if defined(X3270_TRACE) /*[*/
 	if (buflen > 5) {
 		flags = buf[5];
 		trace_ds(",flags=0x%02x", flags);
 	} else
 		flags = 0;
+#endif /*]*/
 
 	if (buflen > 7) {
 		GET16(h, &buf[6]);
@@ -705,7 +712,9 @@ static void
 do_qr_summary(void)
 {
 	unsigned i;
+#if defined(X3270_TRACE) /*[*/
 	const char *comma = "";
+#endif /*]*/
 
 	trace_ds("> QueryReply(Summary(");
 	space3270out(NSR);
@@ -713,8 +722,10 @@ do_qr_summary(void)
 #if defined(X3270_DBCS) /*[*/
 		if (dbcs || replies[i].code != QR_DBCS_ASIA) {
 #endif /*]*/
+#if defined(X3270_TRACE) /*[*/
 			trace_ds("%s%s", comma, see_qcode(replies[i].code));
 			comma = ",";
+#endif /*]*/
 			*obptr++ = replies[i].code;
 #if defined(X3270_DBCS) /*[*/
 		}

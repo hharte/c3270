@@ -1,4 +1,4 @@
-dnl Copyright (c) 2000-2012, Paul Mattes.
+dnl Copyright (c) 2000-2013, Paul Mattes.
 dnl All rights reserved.
 dnl
 dnl Redistribution and use in source and binary forms, with or without
@@ -41,11 +41,12 @@ AC_CANONICAL_HOST
 XPOSIX=""
 XANSI=""
 case "$host_os" in
-hpux)		XPOSIX=-D_XOPEN_SOURCE_EXTENDED
+hpux|*cygwin*)	XPOSIX=-D_XOPEN_SOURCE_EXTENDED
 		;;
 solaris2*)	XANSI=-D__EXTENSIONS__
 		;;
 darwin*)	XPRECOMP=-no-cpp-precomp
+    		XPOSIX=-D_XOPEN_SOURCE_EXTENDED
 		;;
 linux*)		XANSI="-D_POSIX_SOURCE -D_BSD_SOURCE -D_XOPEN_SOURCE"
 		;;
@@ -259,6 +260,11 @@ case "$enable_printer" in
 ""|yes)	AC_DEFINE(X3270_PRINTER,1)
 	;;
 esac
+AC_ARG_ENABLE(menus,[  --disable-menus         leave out menu support])
+case "$enable_menus" in
+""|yes)	AC_DEFINE(X3270_MENUS,1)
+	;;
+esac
 AC_ARG_ENABLE(script,[  --disable-script        leave out scripting support])
 case "$enable_script" in
 ""|yes)	AC_DEFINE(X3270_SCRIPT,1)
@@ -280,6 +286,11 @@ AC_ARG_ENABLE(trace,[  --disable-trace         leave out tracing support])
 case "$enable_trace" in
 ""|yes)	AC_DEFINE(X3270_TRACE,1)
 	;;
+esac
+AC_ARG_ENABLE(ipv6,[  --disable-ipv6         leave out IPv6 support])
+case "$enable_ipv6" in                  
+""|yes) AC_DEFINE(X3270_IPV6,1)                 
+	;;                              
 esac
 AC_ARG_ENABLE(history,[  --enable-history        include experimental history support])
 case "$enable_history" in

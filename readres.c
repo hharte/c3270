@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2009, Paul Mattes.
+ * Copyright (c) 2009, 2013-2014 Paul Mattes.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -62,7 +62,6 @@
 #include "utilc.h"
 
 #if defined(_WIN32) /*[*/
-#include <windows.h>
 #include "winversc.h"
 #endif /*]*/
 
@@ -141,7 +140,7 @@ validate_and_split_resource(const char *where, const char *arg,
 
 /* Read resources from a file. */
 int
-read_resource_filex(const char *filename, Boolean fatal, rrf_t *rrf)
+read_resource_filex(const char *filename, Boolean fatal)
 {
 	FILE *f;
 	int ilen;

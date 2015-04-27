@@ -1,5 +1,5 @@
 '\" t
-.TH c3270 1 "02 May 2013"
+.TH c3270 1 "24 December 2014"
 .SH "NAME"
 c3270 \-
 curses-based 
@@ -77,6 +77,15 @@ may also be specified as a second, separate argument.)
  \fBc3270\fP understands
 the following options:
 .TP
+\fB\-accepthostname\fP \fIspec\fP
+Specifies a particular hostname to accept when validating the name presented
+in the host's SSL certificate, instead of comparing to the name or address
+used to make the connection.
+\fIspec\fP can either be \fBany\fP, which
+disables name validation, \fBDNS:\fP\fIhostname\fP, which matches a
+particular DNS hostname, or \fBIP:\fP\fIaddress\fP, which matches a
+particular numeric IPv4 or IPv6 address.
+.TP
 \fB\-allbold\fP
 Forces all characters to be displayed in bold.
 This helps with PC consoles which display non-bold characters in unreadably
@@ -130,8 +139,6 @@ Specifies an \s-1EBCDIC\s+1 host character set.
 .TP
 \fB\-clear\fP \fItoggle\fP
 Sets the initial value of \fItoggle\fP to \fBfalse\fP.
-The list of toggle names is under \s-1TOGGLES\s+1
-below.
 .TP
 \fB\-defaultfgbg\fP
 Causes c3270 to use the terminal's default foreground color
@@ -192,6 +199,9 @@ Specifies the local encoding method for multi-byte text.
 \fIname\fP is an encoding name recognized by the ICU library.
 (Supported only when c3270 is compiled with DBCS support, and necessary
 only when c3270 cannot figure it out from the locale.)
+.TP
+\fB\-loginmacro\fP \fIAction(arg...) ...\fP
+Specifies a macro to run at login time.
 .TP
 \fB\-model\fP \fIname\fP
 The model of 3270 display to be emulated.
@@ -291,7 +301,7 @@ Prevents \fBc3270\fP from using color, ignoring any color capabilities
 reported by the terminal.
 .TP
 \fB\-noprompt\fP
-Disables command-prompt mode.
+An alias for \-secure.
 .TP
 \fB\-oversize\fP \fIcols\fP\fBx\fP\fIrows\fP
 Makes the screen larger than the default for the chosen model number.
@@ -336,6 +346,10 @@ This option has effect only if a hostname is specified on the command line.
 Switches c3270 from a white-on-black display to a black-on-white
 display.
 .TP
+\fB\-sl\fP \fIn\fP
+Specifies that \fIn\fP lines should be saved for scrolling back.
+The default is 4096.
+.TP
 \fB\-scriptport\fP \fIport\fP
 Causes c3270 to listen for scripting connections on local TCP
 port \fIport\fP.
@@ -346,15 +360,16 @@ on c3270.
 Disables the interactive \fBc3270>\fP prompt.
 When used, a hostname must be provided on the command line.
 .TP
+\fB\-selfsignedok\fP
+When verifying a host \s-1SSL\s+1 certificate, allow it to be self-signed.
+.TP
 \fB\-set\fP \fItoggle\fP
 Sets the initial value of \fItoggle\fP to \fBtrue\fP.
-The list of toggle names is under \s-1TOGGLES\s+1
-below.
 .TP
 \fB\-socket\fP
 Causes the emulator to create a Unix-domain socket when it starts, for use
 by script processes to send commands to the emulator.
-The socket is named \fB/tmp/x3sck.\fP\fIprocess_id\fP.
+The socket is named \fB/tmp/x3sck.\fP\fIpid\fP.
 The \fB\-p\fP option of \fIx3270if\fP causes it to use this socket,
 instead of pipes specified by environment variables.
 .TP
@@ -380,7 +395,7 @@ The name can also be specified with the "c3270.termName" resource.
 \fB\-trace\fP
 Turns on data stream and event tracing at startup.
 The default trace file name is
-\fB/tmp/x3trc.\fP\fIprocess_id\fP.
+\fB/tmp/x3trc\fP.
 .TP
 \fB\-tracefile\fP \fIfile\fP
 Specifies a file to save data stream and event traces into.
@@ -410,10 +425,6 @@ the connection to complete unless it can be validated.
 Sets the value of the named \fIresource\fP to \fIvalue\fP.
 Resources control less common \fBc3270\fP
 options, and are defined under \s-1RESOURCES\s+1 below.
-.TE
-.LP
-These names are also used as the first parameter to the \fBToggle\fP
-action.
 .SH "STATUS LINE"
 If the terminal that \fBc3270\fP is running on
 has at least one more row that the 3270 model requires (e.g., 25 rows for a
@@ -991,6 +1002,17 @@ T{
 .nh
 .in +2
 .ti -2
+Scroll(Forward|Backward)
+T}	T{
+.na
+.nh
+scroll screen
+T}
+T{
+.na
+.nh
+.in +2
+.ti -2
 *String(\fIstring\fP)
 T}	T{
 .na
@@ -1112,7 +1134,11 @@ Turns screen tracing (saving screen images to a file) on or off.
 The command \fBscreentrace on\fP enables screen tracing;
 the command \fBscreentrace off\fP disables it.
 After \fBon\fP, a filename may be specified to override the default
-trace file name of \fB/tmp/x3scr.\fP\fIpid\fP.
+trace file name of
+\fB/tmp/x3scr.\fP\fIpid\fP.
+The keyaord \fBon\fP can also be followed by the keyword \fBprinter\fP and an optional
+print command
+to direct screen traces directly to the printer.
 .TP
 \fBShow\fP
 Displays statistics and settings.
@@ -1124,7 +1150,25 @@ the command \fBtrace off\fP disables it.
 The qualifier \fBdata\fP or \fBkeyboard\fP can be specified
 before \fBon\fP or \fBoff\fP to enable or disable a particular trace.
 After \fBon\fP, a filename may be specified to override the default
-trace file name of \fB/tmp/x3trc.\fP\fIpid\fP.
+trace file name of
+\fB/tmp/x3trc.\fP\fIpid\fP.
+.LP
+Note that certain parameters to c3270 actions (such as the names of files
+and keymaps) are subject to \fIsubstitutions\fP:
+.LP
+The character \fB~\fP at the beginning of a string is replaced with the user's
+home directory.
+A \fB~\fP character followed by a username is
+replaced with that user's home directory.
+.LP
+Environment variables are substituted using the Unix shell convention of
+$\fIname\fP or ${\fIname\fP}.
+.LP
+Two special pseudo-environment variables are supported. ${TIMESTAMP} is
+replaced with a microsecond-resolution timestamp; ${UNIQUE} is replaced with a
+string guaranteed to make a unique filename (the process ID optionally
+followed by a dash and a string of digits). ${UNIQUE} is used to form trace
+file names.
 .SH "KEYMAPS"
 The \fB\-keymap\fP option
 or the \fBc3270.keymap\fP resource
@@ -1230,7 +1274,7 @@ More than one \fIaction\fP may be specified; they will be executed in order.
 Keymap entries are case-sensitive and modifier-specific.
 This means that a keymap for the \fBb\fP key will match only a
 lowercase \fBb\fP.
-Actions for uppercase \fBB\fP, or for \fBAlt-b\fP or \fBControl-B\fP,
+Actions for uppercase \fBB\fP, or for \fBAlt-B\fP,
 must be specified separately.
 .LP
 The base keymap is:
@@ -1462,6 +1506,24 @@ T}	T{
 .na
 .nh
 PA(3)
+T}
+T{
+.na
+.nh
+<Key>PPAGE
+T}	T{
+.na
+.nh
+Scroll(Backward)
+T}
+T{
+.na
+.nh
+<Key>NPAGE
+T}	T{
+.na
+.nh
+Scroll(Forward)
 T}
 .TE
 .LP
@@ -1751,7 +1813,7 @@ tso
 T}	T{
 .na
 .nh
-vm
+vm, cics
 T}
 T{
 .na
@@ -1956,7 +2018,7 @@ The name of the file on the local workstation.
 .TP
 \fBHost\fP
 The type of host (which dictates the form of the \fBIND$FILE\fP command):
-\fBtso\fP (the default) or \fBvm\fP.
+\fBtso\fP (the default), \fBvm\fP or \fBcics\fP.
 .TP
 \fBMode\fP
 Use \fBascii\fP (the default) for a text file, which will be translated
@@ -1990,31 +2052,35 @@ Controls what happens when the destination file already exists.
 .TP
 \fBRecfm\fP
 Controls the record format of files created on the host.
+(\s-1TSO\s+1 and \s-1VM\s+1 hosts only.)
 \fBfixed\fP creates a file with fixed-length records.
 \fBvariable\fP creates a file with variable-length records.
-\fBundefined\fP creates a file with undefined-length records (\s-1TSO\s+1 hosts only).
+\fBundefined\fP creates a file with undefined-length records (\s-1TSO\s+1 hosts
+only).
 The \fBLrecl\fP option controls the record length or maximum record length for
 \fBRecfm=fixed\fP and \fBRecfm=variable\fP files, respectively.
 .TP
 \fBLrecl\fP
 Specifies the record length (or maximum record length) for files created on
 the host.
+(\s-1TSO\s+1 and \s-1VM\s+1 hosts only.)
 .TP
 \fBBlksize\fP
-Specifies the block size for files created on the host.  (\s-1TSO\s+1 hosts only.)
+Specifies the block size for files created on the host.
+(\s-1TSO\s+1 and \s-1VM\s+1 hosts only.)
 .TP
 \fBAllocation\fP
-Specifies the units for the \s-1TSO\s+1 host \fBPrimarySpace\fP and
+Specifies the units for the \fBPrimarySpace\fP and
 \fBSecondarySpace\fP options: \fBtracks\fP, \fBcylinders\fP or
-\fBavblock\fP.
+\fBavblock\fP. (\s-1TSO\s+1 hosts only.)
 .TP
 \fBPrimarySpace\fP
-Primary allocation for a file created on a \s-1TSO\s+1 host.
-The units are given by the \fBAllocation\fP option.
+Primary allocation for a file,
+The units are given by the \fBAllocation\fP option. (\s-1TSO\s+1 hosts only.)
 .TP
 \fBSecondarySpace\fP
-Secondary allocation for a file created on a \s-1TSO\s+1 host.
-The units are given by the \fBAllocation\fP option.
+Secondary allocation for a file.
+The units are given by the \fBAllocation\fP option. (\s-1TSO\s+1 hosts only.) 
 .TP
 \fBBufferSize\fP
 Buffer size for DFT-mode transfers.
@@ -2029,6 +2095,7 @@ The default form wth no arguments sends a copy of the screen to the default
 printer.
 A single argument is
 the command to use to print, e.g., \fBlpr\fP.
+.LP
 Multiple arguments can include keywords to control the output of
 \fBPrintText\fP:
 .TP
@@ -3359,8 +3426,7 @@ the last one on the command line is used.
 $HOME/.c3270pro
 
 .SH "SEE ALSO"
-
-x3270(1), s3270(1), tcl3270(1), ibm_hosts(5), x3270-script(1), telnet(1), tn3270(1)
+pr3287(1), s3270(1), x3270-script(1), x3270(1), tcl3270(1), telnet(1), tn3270(1)
 .br
 Data Stream Programmer's Reference, IBM GA23-0059
 .br
@@ -3372,7 +3438,7 @@ RFC 1646, TN3270 Extensions for LUname and Printer Selection
 .br
 RFC 2355, TN3270 Enhancements
 .SH "COPYRIGHTS"
-Copyright 1993-2013, Paul Mattes.
+Copyright 1993-2014, Paul Mattes.
 .br
 Copyright 2004-2005, Don Russell.
 .br
@@ -3420,4 +3486,4 @@ WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
 OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 .SH "VERSION"
-c3270 3.3.12ga13
+c3270 3.3.15ga8

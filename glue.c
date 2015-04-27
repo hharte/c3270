@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2013, Paul Mattes.
+ * Copyright (c) 1993-2014, Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * Copyright (c) 1989, Georgia Tech Research Corporation (GTRC), Atlanta, GA
  *  30332.
@@ -68,11 +68,8 @@
 #include "xioc.h"
 
 #if defined(_WIN32) /*[*/
-#include <windows.h>
 #include "winversc.h"
 #endif /*]*/
-
-extern void usage(char *);
 
 #define LAST_ARG	"--"
 
@@ -97,11 +94,6 @@ extern void usage(char *);
 #define SESSION_SFX_LEN	(int)(sizeof(SESSION_SFX) - 1)
 #if defined(_WIN32) /*[*/
 # define SESSION_SSFX_LEN (int)(sizeof(SESSION_SSFX) - 1)
-#endif /*]*/
-
-#if defined(C3270) /*[*/
-extern Boolean merge_profile(void);
-extern Boolean any_error_output;
 #endif /*]*/
 
 /* Statics */
@@ -130,30 +122,31 @@ char	       *profile_path = CN;
 
 struct toggle_name toggle_names[] = {
 #if defined(C3270) /*[*/
-	{ ResMonoCase,        MONOCASE },
-	{ ResShowTiming,      SHOW_TIMING },
+	{ ResMonoCase,        MONOCASE,		False },
+	{ ResShowTiming,      SHOW_TIMING,	False },
 #endif /*]*/
 #if defined(X3270_TRACE) /*[*/
-	{ ResDsTrace,         DS_TRACE },
+	{ ResTrace,           TRACING,		False },
+	{ ResDsTrace,         TRACING,		True },
 #endif /*]*/
 #if defined(X3270_ANSI) /*[*/
-	{ ResLineWrap,        LINE_WRAP },
+	{ ResLineWrap,        LINE_WRAP,	False },
 #endif /*]*/
-	{ ResBlankFill,       BLANK_FILL },
+	{ ResBlankFill,       BLANK_FILL,	False },
 #if defined(X3270_TRACE) /*[*/
-	{ ResScreenTrace,     SCREEN_TRACE },
-	{ ResEventTrace,      EVENT_TRACE },
+	{ ResScreenTrace,     SCREEN_TRACE,	False },
+	{ ResEventTrace,      TRACING,		True },
 #endif /*]*/
-#if defined(C3270) /*[*/
-	{ ResMarginedPaste,   MARGINED_PASTE },
+#if defined(WC3270) /*[*/
+	{ ResMarginedPaste,   MARGINED_PASTE,	False },
 #endif /*]*/
 #if defined(X3270_SCRIPT) || defined(TCL3270) /*[*/
-	{ ResAidWait,         AID_WAIT },
+	{ ResAidWait,         AID_WAIT,		False },
 #endif /*]*/
 #if defined(C3270) /*[*/
-	{ ResUnderscore,      UNDERSCORE },
+	{ ResUnderscore,      UNDERSCORE,	False },
 #endif /*]*/
-	{ NULL,               0 }
+	{ NULL,               0,		False }
 };
 
 
@@ -161,9 +154,7 @@ int
 parse_command_line(int argc, const char **argv, const char **cl_hostname)
 {
 	int cl, i;
-	int ovc, ovr;
 	int hn_argc;
-	int model_number;
 	int sl;
 	int xcmd_len = 0;
 	char *xcmd;
@@ -333,6 +324,32 @@ parse_command_line(int argc, const char **argv, const char **cl_hostname)
 	 * Sort out the contradictory and implicit settings.
 	 */
 
+	if (appres.apl_mode)
+		appres.charset = Apl;
+	if (*cl_hostname == CN)
+		appres.once = False;
+	if (appres.conf_dir == CN)
+		appres.conf_dir = LIBX3270DIR;
+
+#if defined(X3270_TRACE) /*[*/
+	if (!appres.debug_tracing) {
+		 appres.toggle[TRACING].value = False;
+	}
+#endif /*]*/
+
+	return argc;
+}
+
+/*
+ * Initialize the model number and oversize. This needs to happen before the
+ * screen is initialized.
+ */
+void
+model_init(void)
+{
+	int model_number;
+	int ovc, ovr;
+
 	/*
 	 * Sort out model and color modes, based on the model number resource.
 	 */
@@ -348,21 +365,23 @@ parse_command_line(int argc, const char **argv, const char **cl_hostname)
 		model_number = 4;
 #endif /*]*/
 	}
+#if defined(RESTRICT_3279) /*[*/
+	if (appres.m3279 && model_number == 4) {
+		model_number = 3;
+	}
+#endif /*]*/
 #if defined(C3270) && !defined(_WIN32) /*[*/
 	if (appres.mono)
 		appres.m3279 = False;
 #endif /*]*/
-	if (!appres.extended)
-		appres.oversize = CN;
 
-#if defined(RESTRICT_3279) /*[*/
-	if (appres.m3279 && model_number == 4)
-		model_number = 3;
-#endif /*]*/
+	if (!appres.extended) {
+		appres.oversize = CN;
+	}
+
 	ovc = 0;
 	ovr = 0;
-	if (appres.extended &&
-	    appres.oversize != CN) {
+	if (appres.extended && appres.oversize != CN) {
 #if defined(C3270) /*[*/
 	    	if (!strcasecmp(appres.oversize, "auto")) {
 		    	ovc = -1;
@@ -381,20 +400,13 @@ parse_command_line(int argc, const char **argv, const char **cl_hostname)
 		}
 	}
 	set_rows_cols(model_number, ovc, ovr);
-	if (appres.termname != CN)
+	if (appres.termname != CN) {
 		termtype = appres.termname;
-	else
+	} else {
 		termtype = full_model_name;
-
-	if (appres.apl_mode)
-		appres.charset = Apl;
-	if (*cl_hostname == CN)
-		appres.once = False;
-	if (appres.conf_dir == CN)
-		appres.conf_dir = LIBX3270DIR;
-
-	return argc;
+	}
 }
+
 
 static void
 no_minus(const char *arg)
@@ -447,11 +459,7 @@ set_appres_defaults(void)
 	appres.mono = False;
 #endif /*]*/
 	appres.extended = True;
-#if defined(C3270) /*[*/
 	appres.m3279 = True;
-#else /*][*/
-	appres.m3279 = False;
-#endif /*]*/
 	appres.modified_sel = False;
 	appres.apl_mode = False;
 #if defined(C3270) || defined(TCL3270) /*[*/
@@ -478,16 +486,7 @@ set_appres_defaults(void)
 	appres.model = "4";
 	appres.hostsfile = CN;
 	appres.port = "23";
-
-#if !defined(_WIN32) /*[*/
 	appres.charset = "bracket";
-#else /*][*/
-	if (is_nt)
-		appres.charset = "bracket";
-	else
-		appres.charset = "bracket437";
-#endif /*]*/
-
 	appres.termname = CN;
 	appres.macros = CN;
 #if defined(X3270_TRACE) && !defined(_WIN32) /*[*/
@@ -505,11 +504,12 @@ set_appres_defaults(void)
 # if defined(C3270) && !defined(_WIN32) /*[*/
 	appres.mouse = True;
 # endif /*]*/
-#if defined(CURSES_WIDE) /*[*/
+#if defined(CURSES_WIDE) || defined(WC3270) /*[*/
 	appres.acs = True;
 #endif /*]*/
 #endif /*]*/
 	appres.bind_limit = True;
+	appres.new_environ = True;
 
 #if defined(X3270_ANSI) /*[*/
 	appres.icrnl = True;
@@ -546,13 +546,18 @@ set_appres_defaults(void)
 	appres.plugin_command = "x3270hist.pl";
 #endif /*]*/
 
-#if defined(WS3270) /*[*/
+#if defined(_WIN32) /*[*/
 	appres.local_cp = GetACP();
 #endif /*]*/
 	appres.devname = "x3270";
 
 #if defined(HAVE_LIBSSL) /*[*/
 	appres.verify_host_cert = False;
+	appres.tls = True;
+#endif /*]*/
+
+#if defined(C3270) /*[*/
+	appres.save_lines = 4096;
 #endif /*]*/
 }
 
@@ -593,6 +598,10 @@ static struct {
 	char *help_opts;
 	char *help_text;
 } opts[] = {
+#if defined(HAVE_LIBSSL) /*[*/
+{ OptAcceptHostname,OPT_STRING,False,ResAcceptHostname,offset(accept_hostname),
+    "any|DNS:<name>|IP:<addr>","Host name to accept from server certificate" },
+#endif /*]*/
 #if defined(C3270) /*[*/
 { OptAllBold,  OPT_BOOLEAN, True,  ResAllBold,   offset(all_bold_on),
     CN, "Display all text in bold" },
@@ -664,9 +673,14 @@ static struct {
 { OptKeymap,   OPT_STRING,  False, ResKeymap,    offset(key_map),
     "<name>[,<name>...]", "Keyboard map name(s)" },
 #endif /*]*/
-#if defined(WS3270) /*[*/
+#if defined(_WIN32) /*[*/
 { OptLocalCp,  OPT_INT,	False, ResLocalCp,   offset(local_cp),
     "<codepage>", "Use <codepage> instead of ANSI codepage for local I/O"
+},
+#endif /*]*/
+#if defined(X3270_SCRIPT) /*[*/
+{ OptLoginMacro, OPT_STRING, False, ResLoginMacro, offset(login_macro),
+    "Action([arg[,arg...]]) [...]"
 },
 #endif /*]*/
 { OptModel,    OPT_STRING,  False, ResModel,     offset(model),
@@ -680,8 +694,8 @@ static struct {
 { OptNoAutoShortcut,OPT_BOOLEAN,False,ResAutoShortcut,offset(auto_shortcut),
     CN, "Do not run in auto-shortcut mode" },
 #endif /*]*/
-{ OptNoPrompt, OPT_BOOLEAN, True,  ResNoPrompt,  offset(no_prompt),
-    CN, "Suppress interactive mode (" APPNAME "> prompt)" },
+{ OptNoPrompt, OPT_BOOLEAN, True,  ResNoPrompt,  offset(secure),
+    CN, "Alias for -secure" },
 #endif /*]*/
 { OptOnce,     OPT_BOOLEAN, True,  ResOnce,      offset(once),
     CN, "Exit as soon as the host disconnects" },
@@ -701,6 +715,10 @@ static struct {
 #endif /*]*/
 { OptProxy,    OPT_STRING,  False, ResProxy,     offset(proxy),
     "<type>:<host>[:<port>]", "Secify proxy type and server" },
+#if defined(C3270) /*[*/
+{ OptSaveLines, OPT_INT,    False, ResSaveLines, offset(save_lines),
+    "<lines>", "Specify the number of lines to save for scrolling" },
+#endif /*]*/
 #if defined(S3270) /*[*/
 { OptScripted, OPT_NOP,     False, ResScripted,  NULL,
     CN, "Turn on scripting" },
@@ -730,7 +748,7 @@ static struct {
     "<string>", "Set window title to <string>" },
 #endif /*]*/
 #if defined(X3270_TRACE) /*[*/
-{ OptDsTrace,  OPT_BOOLEAN, True,  ResDsTrace,   toggle_offset(DS_TRACE),
+{ OptTrace,    OPT_BOOLEAN, True,  ResTrace,     toggle_offset(TRACING),
     CN, "Enable tracing" },
 { OptTraceFile,OPT_STRING,  False, ResTraceFile, offset(trace_file),
     "<file>", "Write traces to <file>" },
@@ -739,6 +757,11 @@ static struct {
 #endif /*]*/
 { OptUser,     OPT_STRING,  False, ResUser,      offset(user),
     "<name>", "Specify user name for RFC 4777" },
+#if defined(S3270) /*[*/
+{ OptUtf8,     OPT_BOOLEAN, True,  ResUtf8,      offset(utf8),
+    CN,       "Force local codeset to be UTF-8"
+},
+#endif /*]*/
 { OptV,        OPT_V,	False, NULL,	     NULL,
     CN, "Display build options and character sets" },
 #if defined(HAVE_LIBSSL) /*[*/
@@ -788,16 +811,22 @@ parse_options(int *argcp, const char **argv)
 					     opts[j].flag? "True": "False");
 			break;
 		    case OPT_STRING:
-			if (i == *argcp - 1)	/* missing arg */
+			if (i == *argcp - 1) {	/* missing arg */
+				popup_an_error("Missing value for '%s'",
+					argv[i]);
 				continue;
+			}
 			*(const char **)opts[j].aoff = argv[++i];
 			if (opts[j].res_name != CN)
 				add_resource(NewString(opts[j].res_name),
 					     NewString(argv[i]));
 			break;
 		    case OPT_XRM:
-			if (i == *argcp - 1)	/* missing arg */
+			if (i == *argcp - 1) {	/* missing arg */
+				popup_an_error("Missing value for '%s'",
+					argv[i]);
 				continue;
+			}
 			parse_xrm(argv[++i], "-xrm");
 			break;
 		    case OPT_SKIP2:
@@ -808,8 +837,11 @@ parse_options(int *argcp, const char **argv)
 		    case OPT_NOP:
 			break;
 		    case OPT_INT:
-			if (i == *argcp - 1)	/* missing arg */
+			if (i == *argcp - 1) {	/* missing arg */
+				popup_an_error("Missing value for '%s'",
+					argv[i]);
 				continue;
+			}
 			*(int *)opts[j].aoff = atoi(argv[++i]);
 			if (opts[j].res_name != CN)
 				add_resource(NewString(opts[j].name),
@@ -829,12 +861,6 @@ parse_options(int *argcp, const char **argv)
 	(void) memcpy((char *)argv, (char *)argv_out,
 	    (argc_out + 1) * sizeof(char *));
 	Free((char *)argv_out);
-
-#if defined(X3270_TRACE) /*[*/
-	/* One isn't very useful without the other. */
-	if (appres.toggle[DS_TRACE].value)
-		appres.toggle[EVENT_TRACE].value = True;
-#endif /*]*/
 }
 
 /* Disply command-line help. */
@@ -888,14 +914,25 @@ parse_set_clear(int *argcp, const char **argv)
 		/* Delete the argument. */
 		i++;
 
-		for (j = 0; toggle_names[j].name != NULL; j++)
-			if (!strcmp(argv[i], toggle_names[j].name)) {
+		for (j = 0; toggle_names[j].name != NULL; j++) {
+			if (!strcasecmp(argv[i], toggle_names[j].name)) {
 				appres.toggle[toggle_names[j].index].value =
 				    is_set;
 				break;
 			}
-		if (toggle_names[j].name == NULL)
-			usage("Unknown toggle name");
+		}
+		if (toggle_names[j].name == NULL) {
+			fprintf(stderr, "Unknown toggle name '%s'. Toggle "
+				"names are:\n", argv[i]);
+			for (j = 0; toggle_names[j].name != NULL; j++) {
+				if (!toggle_names[j].is_alias) {
+					fprintf(stderr, " %s",
+						toggle_names[j].name);
+				}
+			}
+			fprintf(stderr, "\n");
+			exit(1);
+		}
 
 	}
 	*argcp = argc_out;
@@ -996,6 +1033,7 @@ static struct {
 	{ ResBindLimit,	offset(bind_limit),	XRM_BOOLEAN },
 	{ ResBsdTm,	offset(bsd_tm),		XRM_BOOLEAN },
 #if defined(HAVE_LIBSSL) /*[*/
+	{ ResAcceptHostname,offset(accept_hostname),XRM_STRING },
 	{ ResCaDir,	offset(ca_dir),		XRM_STRING },
 	{ ResCaFile,	offset(ca_file),	XRM_STRING },
 	{ ResCertFile,	offset(cert_file),	XRM_STRING },
@@ -1036,7 +1074,7 @@ static struct {
 #if defined(X3270_SCRIPT) /*[*/
 	{ ResPluginCommand, offset(plugin_command), XRM_STRING },
 #endif /*]*/
-#if defined(C3270) /*[*/
+#if defined(C3270) || defined(S3270) /*[*/
 	{ ResIdleCommand,offset(idle_command),	XRM_STRING },
 	{ ResIdleCommandEnabled,offset(idle_command_enabled),	XRM_BOOLEAN },
 	{ ResIdleTimeout,offset(idle_timeout),	XRM_STRING },
@@ -1052,7 +1090,7 @@ static struct {
 	{ ResCursesKeypad,offset(curses_keypad),XRM_BOOLEAN },
 	{ ResCbreak,	offset(cbreak_mode),	XRM_BOOLEAN },
 	{ ResAsciiBoxDraw,offset(ascii_box_draw),	XRM_BOOLEAN },
-#if defined(CURSES_WIDE) /*[*/
+#if defined(CURSES_WIDE) || defined(WC3270) /*[*/
 	{ ResAcs,	offset(acs),		XRM_BOOLEAN },
 #endif /*]*/
 #endif /*]*/
@@ -1060,8 +1098,9 @@ static struct {
 	{ ResKill,	offset(kill),		XRM_STRING },
 	{ ResLnext,	offset(lnext),		XRM_STRING },
 #endif /*]*/
-#if defined(WS3270) /*[*/
+#if defined(_WIN32) /*[*/
 	{ ResLocalCp,	offset(local_cp),	XRM_INT },
+	{ ResFtCodePage, offset(ft_cp),		XRM_INT },
 #endif /*]*/
 	{ ResLoginMacro,offset(login_macro),	XRM_STRING },
 	{ ResM3279,	offset(m3279),		XRM_BOOLEAN },
@@ -1075,8 +1114,9 @@ static struct {
 	{ ResMono,	offset(mono),		XRM_BOOLEAN },
 	{ ResMouse,	offset(mouse),		XRM_BOOLEAN },
 # endif /*]*/
-	{ ResNoPrompt,	offset(no_prompt),	XRM_BOOLEAN },
+	{ ResNoPrompt,	offset(secure),		XRM_BOOLEAN },
 #endif /*]*/
+	{ ResNewEnviron,offset(new_environ),	XRM_BOOLEAN },
 	{ ResNumericLock, offset(numeric_lock),	XRM_BOOLEAN },
 	{ ResOerrLock,	offset(oerr_lock),	XRM_BOOLEAN },
 	{ ResOversize,	offset(oversize),	XRM_STRING },
@@ -1097,6 +1137,9 @@ static struct {
 	{ ResReverseVideo,offset(reverse_video),XRM_BOOLEAN },
 #endif /*]*/
 #endif /*]*/
+#if defined(C3270) /*[*/
+	{ ResSaveLines,	offset(save_lines),	XRM_INT },
+#endif /*]*/
 #if defined(X3270_TRACE) /*[*/
 	{ ResScreenTraceFile,offset(screentrace_file),XRM_STRING },
 #endif /*]*/
@@ -1111,6 +1154,9 @@ static struct {
 	{ ResTermName,	offset(termname),	XRM_STRING },
 #if defined(WC3270) /*[*/
 	{ ResTitle,	offset(title),		XRM_STRING },
+#endif /*]*/
+#if defined(HAVE_LIBSSL) /*[*/
+	{ ResTls,	offset(tls),		XRM_BOOLEAN },
 #endif /*]*/
 #if defined(X3270_TRACE) /*[*/
 	{ ResTraceDir,	offset(trace_dir),	XRM_STRING },
@@ -1189,12 +1235,16 @@ valid_explicit(const char *resname, unsigned len)
 	    { ResKeymap,			V_WILD },
 	    { ResAssocCommand,			V_FLAT },
 	    { ResLuCommandLine,			V_FLAT },
+	    { ResPrintTextScreensPerPage,	V_FLAT },
 #if defined(_WIN32) /*[*/
 	    { ResPrinterCodepage,		V_FLAT },
 	    { ResPrinterCommand,		V_FLAT },
 	    { ResPrinterName, 			V_FLAT },
 	    { ResPrintTextFont, 		V_FLAT },
+	    { ResPrintTextHorizontalMargin,	V_FLAT },
+	    { ResPrintTextOrientation,		V_FLAT },
 	    { ResPrintTextSize, 		V_FLAT },
+	    { ResPrintTextVerticalMargin,	V_FLAT },
 	    { ResHostColorForDefault,		V_FLAT },
 	    { ResHostColorForIntensified,	V_FLAT },
 	    { ResHostColorForProtected,		V_FLAT },
@@ -1301,6 +1351,7 @@ parse_xrm(const char *arg, const char *where)
 			}
 		}
 	}
+	/* XXX: This needs to work for s3270, too. */
 #if defined(C3270) /*[*/
 	if (address == NULL && valid_explicit(name, rnlen) == 0) {
 		/*
@@ -1328,12 +1379,29 @@ parse_xrm(const char *arg, const char *where)
 			*(Boolean *)address = False;
 		} else {
 			xs_warning("%s: Invalid Boolean value: %s", where, s);
+			*(Boolean *)address = False;
 		}
 		break;
 	case XRM_STRING:
 		t = Malloc(strlen(s) + 1);
 		*(char **)address = t;
 		quoted = False;
+#if defined(WC3270) /*[*/
+		/*
+		 * Hack to allow unquoted UNC-path printer names from older
+		 * versions of the Session Wizard to continue to work, even
+		 * though the rules now require quoted backslashes in resource
+		 * values.
+		 */
+		if (!strncapcmp(ResPrinterName, name, rnlen) &&
+		    s[0] == '\\' &&
+		    s[1] == '\\' &&
+		    s[2] != '\\' &&
+		    strchr(s + 2, '\\') != NULL) {
+			strcpy(t, s);
+			break;
+		}
+#endif /*]*/
 
 		while ((c = *s++) != '\0') {
 			if (quoted) {
@@ -1353,9 +1421,12 @@ parse_xrm(const char *arg, const char *where)
 				case 't':
 					*t++ = '\t';
 					break;
-				default:
-					/* Leave other backslashes intact. */
+				case '\\':
+					/* Quote the backslash. */
 					*t++ = '\\';
+					break;
+				default:
+					/* Eat the backslash. */
 					*t++ = c;
 					break;
 				}
@@ -1473,7 +1544,7 @@ safe_string(const char *s)
 int
 read_resource_file(const char *filename, Boolean fatal)
 {
-    	return read_resource_filex(filename, fatal, parse_xrm);
+    	return read_resource_filex(filename, fatal);
 }
 
 /* Screen globals. */
@@ -1501,24 +1572,10 @@ void
 popup_an_error(const char *fmt, ...)
 {
 	va_list args;
-	char *s;
-	int sl;
 
 	va_start(args, fmt);
-	(void) vsprintf(vmsgbuf, fmt, args);
+	(void) vsnprintf(vmsgbuf, sizeof(vmsgbuf), fmt, args);
 	va_end(args);
-
-	/*
-	 * Multi-line messages are fine for X pop-ups, but they're no fun for
-	 * text applications.
-	 */
-	s = vmsgbuf;
-	while ((s = strchr(s, '\n')) != NULL) {
-		*s++ = ' ';
-	}
-	while ((sl = strlen(vmsgbuf)) > 0 && vmsgbuf[sl-1] == ' ') {
-		vmsgbuf[--sl] = '\0';
-	}
 
 	/* Log to the trace file. */
 	trace_dsn("%s\n", vmsgbuf);
@@ -1527,12 +1584,12 @@ popup_an_error(const char *fmt, ...)
 		sms_error(vmsgbuf);
 		return;
 	} else {
-#if defined(C3270) || defined(WC3270) /*[*/
+#if defined(C3270) /*[*/
 		screen_suspend();
 		any_error_output = True;
 #endif /*]*/
 		(void) fprintf(stderr, "%s\n", vmsgbuf);
-		fflush(stderr); /* for Windows */
+		fflush(stderr);
 		macro_output = True;
 	}
 }
@@ -1545,12 +1602,12 @@ popup_an_errno(int errn, const char *fmt, ...)
 	char *s;
 
 	va_start(args, fmt);
-	(void) vsprintf(vmsgbuf, fmt, args);
+	(void) vsnprintf(vmsgbuf, sizeof(vmsgbuf), fmt, args);
 	va_end(args);
 	s = NewString(vmsgbuf);
 
 	if (errn > 0)
-		popup_an_error("%s:\n%s", s, strerror(errn));
+		popup_an_error("%s: %s", s, strerror(errn));
 	else
 		popup_an_error("%s", s);
 	Free(s);
@@ -1562,24 +1619,28 @@ action_output(const char *fmt, ...)
 	va_list args;
 
 	va_start(args, fmt);
-	(void) vsprintf(vmsgbuf, fmt, args);
+	(void) vsnprintf(vmsgbuf, sizeof(vmsgbuf), fmt, args);
 	va_end(args);
 	if (sms_redirect()) {
 		sms_info("%s", vmsgbuf);
 		return;
 	} else {
+#if !defined(WC3270) /*[*/
 		FILE *aout;
+#endif /*]*/
 
 #if defined(C3270) /*[*/
-		screen_suspend();
-		aout = start_pager();
 		any_error_output = True;
+		screen_suspend();
+# if defined(WC3270) /*[*/
+		pager_output(vmsgbuf);
+# else /*][*/
+		aout = start_pager();
+# endif /*]*/
 #else /*][*/
 		aout = stdout;
 #endif /*]*/
-#if defined(WC3270) /*[*/
-		pager_output(vmsgbuf);
-#else /*][*/
+#if !defined(WC3270) /*[*/
 		(void) fprintf(aout, "%s\n", vmsgbuf);
 #endif /*]*/
 		macro_output = True;

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1993-2012, Paul Mattes.
+ * Copyright (c) 1993-2012, 2014 Paul Mattes.
  * Copyright (c) 1990, Jeff Sparkes.
  * All rights reserved.
  *
@@ -35,12 +35,20 @@
 
 /* Toggles */
 
-enum toggle_type { TT_INITIAL, TT_INTERACTIVE, TT_ACTION, TT_FINAL };
+enum toggle_type {
+    TT_INITIAL,		/* at start-up */
+    TT_INTERACTIVE,	/* at the prompt */
+    TT_ACTION,		/* from a keymap, script or macro */
+    TT_XMENU,		/* from a GUI menu */
+    TT_FINAL		/* at shutdown */
+};
 struct toggle {
 	Boolean value;		/* toggle value */
 	Boolean changed;	/* has the value changed since init */
+#if defined(X3270_MENUS) /*[*/
 	Widget w[2];		/* the menu item widgets */
 	const char *label[2];	/* labels */
+#endif /*]*/
 	void (*upcall)(struct toggle *, enum toggle_type); /* change value */
 };
 #define MONOCASE	0
@@ -50,7 +58,7 @@ struct toggle {
 #define CURSOR_POS	4
 
 #if defined(X3270_TRACE) /*[*/
-#define DS_TRACE	5
+#define TRACING		5
 #endif /*]*/
 
 #define SCROLL_BAR	6
@@ -63,26 +71,25 @@ struct toggle {
 
 #if defined(X3270_TRACE) /*[*/
 #define SCREEN_TRACE	9
-#define EVENT_TRACE	10
 #endif /*]*/
 
-#define MARGINED_PASTE	11
-#define RECTANGLE_SELECT 12
+#define MARGINED_PASTE	10
+#define RECTANGLE_SELECT 11
 
 #if defined(X3270_DISPLAY) /*[*/
-#define CROSSHAIR	13
-#define VISIBLE_CONTROL	14
+#define CROSSHAIR	12
+#define VISIBLE_CONTROL	13
 #endif /*]*/
 
 #if defined(X3270_SCRIPT) || defined(TCL3270) /*[*/
-#define AID_WAIT	15
+#define AID_WAIT	14
 #endif /*]*/
 
 #if defined(C3270) /*[*/
-#define UNDERSCORE	16
+#define UNDERSCORE	15
 #endif /*]*/
 
-#define N_TOGGLES	17
+#define N_TOGGLES	16
 
 #define toggled(ix)		(appres.toggle[ix].value)
 #define toggle_toggle(t) \
@@ -98,17 +105,17 @@ typedef struct {
 #endif /*]*/
 
 	/* Options (not toggles) */
-#if defined(X3270_DISPLAY) || (defined(C3270) && !defined(_WIN32)) /*[*/
+#if defined(X3270_INTERACTIVE) && !defined(_WIN32) /*[*/
 	Boolean mono;
 #endif /*]*/
 	Boolean extended;
 	Boolean m3279;
 	Boolean modified_sel;
 	Boolean	once;
-#if defined(X3270_DISPLAY) || (defined(C3270) && defined(_WIN32)) /*[*/
+#if defined(X3270_DISPLAY) || defined(WC3270) /*[*/
 	Boolean visual_bell;
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	Boolean menubar;
 #endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
@@ -125,7 +132,7 @@ typedef struct {
 	Boolean	keypad_on;
 # endif /*]*/
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	Boolean do_confirms;
 	Boolean reconnect;
 #endif /*]*/
@@ -133,7 +140,6 @@ typedef struct {
 	Boolean all_bold_on;
 	Boolean	curses_keypad;
 	Boolean cbreak_mode;
-	Boolean no_prompt;
 	Boolean default_fgbg;
 #if !defined(_WIN32) /*[*/
 	Boolean reverse_video;
@@ -156,6 +162,7 @@ typedef struct {
 	Boolean unlock_delay;
 	Boolean qr_bg_color;
 	Boolean bind_limit;
+	Boolean new_environ;
 #if defined(X3270_SCRIPT) /*[*/
 	Boolean socket;
 	int	script_port;
@@ -165,18 +172,20 @@ typedef struct {
 #if defined(X3270_KEYPAD) /*[*/
 	char	*keypad;
 #endif /*]*/
-#if defined(X3270_DISPLAY) || defined(C3270) /*[*/
+#if defined(X3270_INTERACTIVE) /*[*/
 	char	*key_map;
 	char	*compose_map;
 	char	*printer_lu;
 	char	*printer_opts;
+#endif /*]*/
+#if defined(X3270_INTERACTIVE) /*[*/
+	int	save_lines;
 #endif /*]*/
 #if defined(X3270_DISPLAY) /*[*/
 	char	*efontname;
 	char	*fixed_size;
 	char	*icon_font;
 	char	*icon_label_font;
-	int	save_lines;
 	char	*normal_name;
 	char	*select_name;
 	char	*bold_name;
@@ -222,6 +231,8 @@ typedef struct {
 	char	*trace_file;
 	char	*screentrace_file;
 	char	*trace_file_size;
+	Boolean  dsTrace_bc;
+	Boolean  eventTrace_bc;
 # if defined(X3270_DISPLAY) || defined(WC3270) /*[*/
 	Boolean	trace_monitor;
 # endif /*]*/
@@ -247,8 +258,10 @@ typedef struct {
 	char	*key_file;
 	char	*key_file_type;
 	char	*key_passwd;
+	char	*accept_hostname;
 	Boolean	 self_signed_ok;
 	Boolean	 verify_host_cert;
+	Boolean	 tls;
 #endif /*]*/
 	char	*proxy;
 #if defined(TCL3270) /*[*/
@@ -290,8 +303,14 @@ typedef struct {
 	char	*title;
 #endif /*]*/
 
-#if defined(WS3270) /*[*/
+#if defined(_WIN32) /*[*/
 	int	local_cp;
+# if defined(X3270_FT) /*[*/
+	int	ft_cp;
+# endif /*]*/
+#endif /*]*/
+#if defined(S3270) /*[*/
+	Boolean	utf8;
 #endif /*]*/
 
 #if defined(USE_APP_DEFAULTS) /*[*/

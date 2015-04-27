@@ -1,0 +1,1450 @@
+<!DOCTYPE doctype PUBLIC "-//w3c//dtd html 4.0 transitional//en">
+<html>
+<head>
+ <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+ <title>c3270 Resources</title>
+ <link HREF="http://www.w3.org/StyleSheets/Core/Steely" TYPE="text/css" REL="stylesheet">
+ <style type="text/css">
+<!--
+.indented
+{
+    padding-left: 50pt;
+    padding-right: 50pt;
+}
+-->
+</style>
+</head>
+<body>
+<h1>c3270 Resources</h1>
+ <i>Resources</i> are used to configure c3270.  Resources are named items with
+ string, integer or Boolean values.
+ <p>
+ Resource definitions come from the following sources:
+ <ul>
+ <li>Default values are compiled into c3270.</li>
+ <li>If a session file <b><i>foo</i>.c3270</b> is specified on the command line,
+ its contents are applied.
+ Otherwise, if the c3270 profile (<b>~/.c3270pro</b>) exists, it is read and its
+ contents are applied.
+ These definitions override resource values defined by
+ compiled-in defaults.</li>
+ <li>Command-line options override all other resource definitions.  If more
+  than one command-line option sets a resource, the last one is used.</li>
+ </ul>
+ Many resources have their own command-line switches, which are listed below.
+ Those that do not can still be set from the command-line via the <b>-xrm</b>
+ command-line option.  For example <a href=#bsdTm>c3270.bsdTm</a> can be set by the
+ following command-line option:
+ <pre>
+     -xrm 'c3270.bsdTm: true'
+ </pre>
+ Note that <b>-xrm</b> is supported on all of the 3270 emulators, not just on
+ x3270.
+ <h2>Resource File Syntax</h2>
+ A resource file
+ (profile or session file)
+ has the following syntax.
+ <ul>
+  <li>Each definition consists of:
+  <pre>
+    <b>c3270.</b><i>resource-name</i><b>:</b> <i>value</i>
+  </pre></li>
+  <li>Comment lines begin with <b>!</b>.</li>
+  <li>Line continuation is indicated by a backshash (<b>\</b>) character at
+   the end of a line.</li>
+  <li>Multi-line resources, such as keymap definitions, are split with
+   newline characters, e.g.:
+  <pre>
+    <b>c3270.keymap.foo: \
+      &lt;Key>a: String("bob") \n\
+      &lt;Key>b: String("fred") \n\
+      &lt;Key>c: String("joe")</b>
+  </pre></li>
+ </ul>
+<h2>Alphabetical Resource List</h2>
+<a name="acs"></a>
+<b>Name:</b> c3270.acs<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will use the curses Alternative Character Set (ACS) to
+    display box-drawing characters.
+    When false, c3270 will use Unicode box-drawing characters.
+</p>
+<a name="aidWait"></a>
+<b>Name:</b> c3270.aidWait<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -set aidWait
+, -clear aidWait
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will not block a script after executing
+    an AID action (<b>Enter</b>, <b>Clear</b>, <b>PF</b> or <b>PA</b>).
+    It is then script's responsibility to poll c3270's status until it shows
+    that the keyboard is no longer unlocked.
+</p>
+<a name="allBold"></a>
+<b>Name:</b> c3270.allBold<br>
+<b>Type</b>: String<br>
+<b>Default</b>: auto<br>
+<b>Command Line</b>: -allbold
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will display all text in bold.  This is needed
+    for terminals like Linux consoles and xterms that display non-bold text
+    in unreadably-dim colors.  When false, text will be displayed in normal or
+    bold, depending on the host-specified highlighting attribute.
+    <p class=indented>
+    When set to <b>auto</b>, it will be assumed <b>true</b> for 3279 emulation,
+    and <b>false</b> for 3278 emulation.
+</p>
+<a name="altScreen"></a>
+<b>Name:</b> c3270.altScreen<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -altscreen
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a character string that will be output to switch the terminal from
+    80-column mode to 132-column mode.
+    Within the string, the sequence <b>\E</b> is translated to the ASCII
+    ESC character (0x1b).
+    <p class=indented>
+    When <a href=#model>c3270.model</a> is 5, and this and
+    <a href=#defScreen>c3270.defScreen</a> are defined, c3270 will automatically change the
+    terminal size when the host switches between the default (24x80) screen
+    and the alternate (27x132) screen.
+</p>
+<a name="asciiBoxDraw"></a>
+<b>Name:</b> c3270.asciiBoxDraw<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, this causes box-drawing characters (the Unicode 2500 block) to
+    be drawn with ASCII-art characters (<b>+</b>, <b>-</b> and <b>|</b>).
+    This allows a readable representation of these characters on the screen
+    when using fonts that do not include them or have them with the wrong
+    width.
+</p>
+<a name="bindLimit"></a>
+<b>Name:</b> c3270.bindLimit<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will restrict its screen dimensions to those specified in
+    the BIND image sent by the host.
+    If false, it will not.
+</p>
+<a name="blankFill"></a>
+<b>Name:</b> c3270.blankFill<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -set blankFill
+, -clear blankFill
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, in 3270 mode c3270 will automatically convert
+    trailing blanks in a field to NULLs in order to insert a character, and will
+    automatically convert leading NULLs to blanks so that input data is not
+    squeezed to the left.  This works around some of the quirkier behavior of
+    real 3270 terminals.
+</p>
+<a name="bsdTm"></a>
+<b>Name:</b> c3270.bsdTm<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines c3270's response to the TELNET DO TIMING MARK option.  When set
+    to false, c3270 will respond to DO TIMING MARK with
+    WONT
+    TIMING MARK, which is consistent with most modern TELNET clients.  When
+    true, c3270 will respond with WILL TIMING MARK, which is consistent
+    with the old BSD <i>telnet</i> command and with previous versions of
+    c3270.  In either case, c3270 will never respond to a DONT TIMING MARK option.
+</p>
+<a name="caDir"></a>
+<b>Name:</b> c3270.caDir<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -cadir
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a directory containing CA (root) certificates, used to validate
+    a certificate presented by the host during SSL negotiation.
+    The default is determined by the OpenSSL library on your workstation.
+</p>
+<a name="caFile"></a>
+<b>Name:</b> c3270.caFile<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -cafile
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a PEM-format file containing CA (root) certificates, used to
+    validate a certificate presented by the host during SSL negotiation.
+</p>
+<a name="cbreak"></a>
+<b>Name:</b> c3270.cbreak<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -cbreak
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, c3270 will set up the terminal in <b>cbreak</b> mode
+    instead of the default <b>raw</b> mode.  <b>Cbreak</b> mode enables
+    flow-control processing in the TTY driver, and may be required for
+    certain terminals that use flow control to avoid dropping characters.
+</p>
+<a name="certFile"></a>
+<b>Name:</b> c3270.certFile<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -certfile
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the name of a certificate file, provided to the host if requested
+    during SSL negotiation.
+    The default file format is PEM; it can be overridden by <a href=#certFileType>c3270.certFileType</a>.
+    The private key for the certificate is specified by <a href=#keyFile>c3270.keyFile</a>.
+    If <a href=#chainFile>c3270.chainFile</a> is specified, it overrides <a href=#certFile>c3270.certFile</a>.
+</p>
+<a name="certFileType"></a>
+<b>Name:</b> c3270.certFileType<br>
+<b>Type</b>: String<br>
+<b>Default</b>: pem<br>
+<b>Command Line</b>: -certfiletype
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the type of the certificate file specified by <a href=#certFile>c3270.certFile</a>.
+    The value can be <b>pem</b> or <b>asn1</b>.
+</p>
+<a name="chainFile"></a>
+<b>Name:</b> c3270.chainFile<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -chainfile
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the name of a certificate chain file, provided to the host if
+    requested during SSL negotiation.
+    The file contains a PEM-format certificate, optionally followed by
+    any intermediate certificates used to sign it, and the CA (root)
+    certificate.
+    The private key for the certificate is specified by <a href=#keyFile>c3270.keyFile</a>.
+    If <a href=#chainFile>c3270.chainFile</a> is specified, it overrides <a href=#certFile>c3270.certFile</a>.
+</p>
+<a name="charset"></a>
+<b>Name:</b> c3270.charset<br>
+<b>Type</b>: String<br>
+<b>Default</b>: bracket<br>
+<b>Command Line</b>: -charset
+<br>
+<b>Description</b>:<br>
+<p class=indented>    This defines the host EBCDIC character set, that is, what glyph (image) is
+    displayed for each EBCDIC code sent by the host, and what EBCDIC code is
+    sent to the host for each character typed on the keyboard.
+    This is more correctly referred to as the <i>host code page</i>.
+    <p class="indented">
+    To display the character sets supported by c3270, use the <b>-v</b>
+    command-line option.
+</p>
+<a name="color8"></a>
+<b>Name:</b> c3270.color8<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, c3270 will respond to a Query(Color) with a list of 8
+    supported colors.  If false, it will send a list
+    of 16 colors.  The 8-color setting is required for some hosts which
+    abort a session if 16 colors are reported.
+    <p class=indented>
+    This setting will also cause c3270 to assume that the terminal supports
+    no more than 8 colors, and will use only the 8 basic curses colors to draw
+    the screen.
+</p>
+<a name="composeMap"></a>
+<b>Name:</b> c3270.composeMap<br>
+<b>Type</b>: String<br>
+<b>Default</b>: latin1<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the name of the map used to define the pairs of characters that
+    form composite characters with the <i>Compose</i> key.
+    The definition of compose map <i>foo</i> is the resource
+    <a href=#composeMap.foo>c3270.composeMap.<i>foo</i></a>.
+</p>
+<a name="composeMap.foo"></a>
+<b>Name:</b> c3270.composeMap.<i>foo</i><br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    An individual compose map definition.
+    Each line in the resource is of the form:
+<pre>
+         keysym1 + keysym2 = keysym3
+</pre>
+<p class=indented>
+    meaning "when the </i>Compose</i> key is pressed,
+    followed by keysym1 and keysym2 (in either order), interpret it as
+    keysym3."  The definitions are case-sensitive.
+</p>
+<a name="confDir"></a>
+<b>Name:</b> c3270.confDir<br>
+<b>Type</b>: String<br>
+<b>Default</b>: /usr/local/etc/x3270<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines the c3270 configuration directory, where c3270 will search for the
+    <b>ibm_hosts</b> file by default.  (See <a href=#hostsFile>c3270.hostsFile</a>.)
+</p>
+<a name="cursesColorForDefault"></a>
+<b>Name:</b> c3270.cursesColorForDefault<br>
+<a name="cursesColorForIntensified"></a>
+<b>Name:</b> c3270.cursesColorForIntensified<br>
+<a name="cursesColorForProtected"></a>
+<b>Name:</b> c3270.cursesColorForProtected<br>
+<a name="cursesColorForProtectedIntensified"></a>
+<b>Name:</b> c3270.cursesColorForProtectedIntensified<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines the default color to use to render text based on its attributes,
+    when the host does not specify a particular color.
+    <p class=indented>
+    The value of the resource can be either a curses color index or curses color
+    name.  These are are defined as follows:
+    <table cols=2 width="75%">
+    <tr> <th>Curses Color Index</th> <th>Curses Color Name</th> </tr>
+    <tr> <td>0</td> <td>black</td> </tr>
+    <tr> <td>1</td> <td>red</td> </tr>
+    <tr> <td>2</td> <td>green</td> </tr>
+    <tr> <td>3</td> <td>yellow</td> </tr>
+    <tr> <td>4</td> <td>blue</td> </tr>
+    <tr> <td>5</td> <td>magenta</td> </tr>
+    <tr> <td>6</td> <td>cyan</td> </tr>
+    <tr> <td>7</td> <td>white</td> </tr>
+    <tr> <td>8</td> <td><i>no name -- displays as grey</i></td> </tr>
+    <tr> <td>9</td> <td><i>no name -- displays as bright red</i></td> </tr>
+    <tr> <td>10</td> <td><i>no name -- displays as bright green</i></td> </tr>
+    <tr> <td>11</td> <td><i>no name -- displays as bright yellow</i></td> </tr>
+    <tr> <td>12</td> <td><i>no name -- displays as bright blue</i></td> </tr>
+    <tr> <td>13</td> <td><i>no name -- displays as bright magenta</i></td> </tr>
+    <tr> <td>14</td> <td><i>no name -- displays as bright cyan</i></td> </tr>
+    <tr> <td>15</td> <td><i>no name -- displays as bright white</i></td> </tr>
+    </table>
+    <p class=indented>
+    The default values are:
+    <table cols=3 width="75%" cellspacing=5>
+    <tr> <th>c3270 Resource</th>
+         <th>Default Curses Color (8-color terminal)</th>
+	 <th><b>Default Curses Color (16-color terminal)</th> </tr>
+    <tr> <td>cursesColorForDefault</td> <td>green</td> <td>10 (bright green)</td> </tr>
+    <tr> <td>cursesColorForIntensified</td> <td>red</td> <td>red</td> </tr>
+    <tr> <td>cursesColorForProtected</td> <td>blue</td> <td>12 (bright blue)</td> </tr>
+    <tr> <td>cursesColorForProtectedIntensified</td> <td>white</td> <td>15 (bright white)</td> </tr>
+    </table>
+</p>
+<a name="cursesColorForHostColor0"></a>
+<b>Name:</b> c3270.cursesColorForHostColor0<br>
+<a name="cursesColorForHostColorNeutralBlack"></a>
+<b>Name:</b> c3270.cursesColorForHostColorNeutralBlack<br>
+<a name="cursesColorForHostColor1"></a>
+<b>Name:</b> c3270.cursesColorForHostColor1<br>
+<a name="cursesColorForHostColorBlue"></a>
+<b>Name:</b> c3270.cursesColorForHostColorBlue<br>
+<a name="cursesColorForHostColor2"></a>
+<b>Name:</b> c3270.cursesColorForHostColor2<br>
+<a name="cursesColorForHostColorRed"></a>
+<b>Name:</b> c3270.cursesColorForHostColorRed<br>
+<a name="cursesColorForHostColor3"></a>
+<b>Name:</b> c3270.cursesColorForHostColor3<br>
+<a name="cursesColorForHostColorPink"></a>
+<b>Name:</b> c3270.cursesColorForHostColorPink<br>
+<a name="cursesColorForHostColor4"></a>
+<b>Name:</b> c3270.cursesColorForHostColor4<br>
+<a name="cursesColorForHostColorGreen"></a>
+<b>Name:</b> c3270.cursesColorForHostColorGreen<br>
+<a name="cursesColorForHostColor5"></a>
+<b>Name:</b> c3270.cursesColorForHostColor5<br>
+<a name="cursesColorForHostColorTurquoise"></a>
+<b>Name:</b> c3270.cursesColorForHostColorTurquoise<br>
+<a name="cursesColorForHostColor6"></a>
+<b>Name:</b> c3270.cursesColorForHostColor6<br>
+<a name="cursesColorForHostColorYellow"></a>
+<b>Name:</b> c3270.cursesColorForHostColorYellow<br>
+<a name="cursesColorForHostColor7"></a>
+<b>Name:</b> c3270.cursesColorForHostColor7<br>
+<a name="cursesColorForHostColorNeutralWhite"></a>
+<b>Name:</b> c3270.cursesColorForHostColorNeutralWhite<br>
+<a name="cursesColorForHostColor8"></a>
+<b>Name:</b> c3270.cursesColorForHostColor8<br>
+<a name="cursesColorForHostColorBlack"></a>
+<b>Name:</b> c3270.cursesColorForHostColorBlack<br>
+<a name="cursesColorForHostColor9"></a>
+<b>Name:</b> c3270.cursesColorForHostColor9<br>
+<a name="cursesColorForHostColorDeepBlue"></a>
+<b>Name:</b> c3270.cursesColorForHostColorDeepBlue<br>
+<a name="cursesColorForHostColor10"></a>
+<b>Name:</b> c3270.cursesColorForHostColor10<br>
+<a name="cursesColorForHostColorOrange"></a>
+<b>Name:</b> c3270.cursesColorForHostColorOrange<br>
+<a name="cursesColorForHostColor12"></a>
+<b>Name:</b> c3270.cursesColorForHostColor12<br>
+<a name="cursesColorForHostColorPurple"></a>
+<b>Name:</b> c3270.cursesColorForHostColorPurple<br>
+<a name="cursesColorForHostColor13"></a>
+<b>Name:</b> c3270.cursesColorForHostColor13<br>
+<a name="cursesColorForHostColorPaleGreen"></a>
+<b>Name:</b> c3270.cursesColorForHostColorPaleGreen<br>
+<a name="cursesColorForHostColor14"></a>
+<b>Name:</b> c3270.cursesColorForHostColor14<br>
+<a name="cursesColorForHostColorPaleTurquoise"></a>
+<b>Name:</b> c3270.cursesColorForHostColorPaleTurquoise<br>
+<a name="cursesColorForHostColor15"></a>
+<b>Name:</b> c3270.cursesColorForHostColor15<br>
+<a name="cursesColorForHostColorGrey"></a>
+<b>Name:</b> c3270.cursesColorForHostColorGrey<br>
+<a name="cursesColorForHostColor16"></a>
+<b>Name:</b> c3270.cursesColorForHostColor16<br>
+<a name="cursesColorForHostColorWhite"></a>
+<b>Name:</b> c3270.cursesColorForHostColorWhite<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines what curses color to use to render a particular host color.
+    Host colors can be specified by name or number.  That is, to define the
+    curses color to use when the host specifies <b>green</b>, which is host
+    color 4, either the resource <b>c3270.cursesColorForHostColorGreen</b> or
+    the resource <b>c3270.cursesColorForHostColor4</b> can be defined.
+    <p class=indented>
+    The default definitions are as follows.  Note that on an 8-color
+    terminal, c3270 only displays 8 host colors.
+    <table cols=4 width="75%">
+    <tr> <th>Host Color Index</th>
+         <th>Host Color Name</th>
+         <th>Default Curses Color (8-color terminal)</th>
+         <th>Default Curses Color (16-color terminal)</th> </tr>
+    <tr> <td>0</td> <td>NeutralBlack</td> <td>black</td> <td>black</td> </tr>
+    <tr> <td>1</td> <td>Blue</td> <td>blue</td> <td>12 (bright blue)</td> </tr>
+    <tr> <td>2</td> <td>Red</td> <td>red</td> <td>red</td> </tr>
+    <tr> <td>3</td> <td>Pink</td> <td>red</td> <td>13 (bright magenta)</td> </tr>
+    <tr> <td>4</td> <td>Green</td> <td>green</td> <td>10 (bright green)</td> </tr>
+    <tr> <td>5</td> <td>Turquoise</td> <td>cyan</td> <td>14 (bright cyan)</td> </tr>
+    <tr> <td>6</td> <td>Yellow</td> <td>yellow</td> <td>11 (bright yellow)</td> </tr>
+    <tr> <td>7</td> <td>NeutralWhite</td> <td>white</td> <td>15 (bright white)</td> </tr>
+    <tr> <td>8</td> <td>Black</td> <td>-</td> <td>black</td> </tr>
+    <tr> <td>9</td> <td>DeepBlue</td> <td>-</td> <td>blue</td> </tr>
+    <tr> <td>10</td> <td>Orange</td> <td>-</td> <td>9 (bright red)</td> </tr>
+    <tr> <td>11</td> <td>Purple</td> <td>-</td> <td>magenta</td> </tr>
+    <tr> <td>12</td> <td>PaleGreen</td> <td>-</td> <td>green</td> </tr>
+    <tr> <td>13</td> <td>PaleTurquoise</td> <td>-</td> <td>cyan</td> </tr>
+    <tr> <td>14</td> <td>Grey</td> <td>-</td> <td>white</td> </tr>
+    <tr> <td>15</td> <td>White</td> <td>-</td> <td>15 (bright white)</td> </tr>
+    </table>
+    <p class=indented>
+    Note that "neutral black" means black on a display device and white on
+    a printing device, and "neutral white" means white on a display device and
+    black on a printing device.
+    <p class=indented>
+    In NVT mode, c3270 maps the ANSI-standard colors 0 through
+    7 to host colors, and from host colors to curses colors.
+    The mapping from ANSI colors to host colors cannot be changed, but the
+    mapping from host colors to curses colors can be with
+    <b>c3270.cursesColorForHostColor*</b> resources.
+    The mappings and defaults are as follows:
+    <table cols=4 width="75%">
+    <tr><th>NVT ANSI Color</th>
+        <th>Mapped Host Color (not configurable)</th>
+	<th>Default Curses Color (8-color terminal)</th>
+	<th>Default Curses Color (16-color terminal)</th> </tr>
+    <tr> <td>0 (black)</td> <td>0 (Black)</td> <td>black</td> <td>black</td> </tr>
+    <tr> <td>1 (red)</td> <td>2 (Red)</td> <td>red</td> <td>red</td> </tr>
+    <tr> <td>2 (green)</td> <td>4 (Green)</td> <td>green</td> <td>10 (bright green)</td> </tr>
+    <tr> <td>3 (yellow)</td> <td>6 (Yellow)</td> <td>yellow</td> <td>11 (bright yellow)</td> </tr>
+    <tr> <td>4 (blue)</td> <td>1 (Blue)</td> <td>blue</td> <td>12 (bright blue)</td> </tr>
+    <tr> <td>5 (magenta)</td> <td>3 (Pink)</td> <td>red</td> <td>13 (bright magenta)</td> </tr>
+    <tr> <td>6 (turquoise)</td> <td>13 (PaleTurquioise)</td> <td>cyan</td> <td>cyan</td> </tr>
+    <tr> <td>7 (white)</td> <td>15 (White)</td> <td>white</td> <td>15 (bright white)</td> </tr>
+    </table>
+    <p class=indented>
+    See <a href=#cursesColorForDefault>c3270.cursesColorForDefault</a> for the definitions of curses colors.
+</p>
+<a name="cursesKeypad"></a>
+<b>Name:</b> c3270.cursesKeypad<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will set up the terminal in curses keypad mode.
+</p>
+<a name="cursorPos"></a>
+<b>Name:</b> c3270.cursorPos<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Command Line</b>: -set cursorPos
+, -clear cursorPos
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, causes c3270 to display the cursor location in the OIA
+    (the status line).
+</p>
+<a name="dbcsCgcsgid"></a>
+<b>Name:</b> c3270.dbcsCgcsgid<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Overrides the compiled-in value of the CGCSGID for the current host
+    character set, which will be reported to the host in response to a
+    Query(Character Sets).  The value is an integer, which can be prefixed with
+    '0x' to be in hexadecimal.  The upper 16 bits are the GCSGID (character
+    set) and the lower 16 bits are the CPGID (code page).  This value
+    applies only to the double-byte (DBCS) character set.  Use
+    <a href=#sbcsCgcsgid>c3270.sbcsCgcsgid</a> for the single-byte (SBCS) character set.
+</p>
+<a name="defaultFgBg"></a>
+<b>Name:</b> c3270.defaultFgBg<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -defaultfgbg
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, c3270 will use the terminal's default foreground color instead of
+    specifying the curses color <b>white</b>, and it will use the terminal's
+    default background color instead of specifying the curses color
+    <b>black</b>. This is helpful in two cases: for emulators such as
+    <b>gnome-terminal</b> whose usual representation of a black background is
+    a murky gray, and for emulators configured with a black foreground and a
+    white background, so that c3270's screen will appear the same way.
+    <p class=indented>
+    <b>defaultFgBg</b> will be set to true automatically if the environment
+    variable <b>COLORTERM</b> is set to <b>gnome-terminal</b>.
+    <p class=indented>
+    Note that this resource and option are available only if c3270 has been
+    compiled with a version of ncurses that supports default foreground and
+    background colors, and if the terminal and its associated termcap/terminfo
+    entry also support it (it is usually implemented as ANSI color 9).
+</p>
+<a name="defScreen"></a>
+<b>Name:</b> c3270.defScreen<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -defscreen
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a character string that will be output to switch the terminal from
+    132-column mode to 80-column mode.
+    Within the string, the sequence <b>\E</b> is translated to the ASCII
+    ESC character (0x1b).
+    <p class=indented>
+    When <a href=#model>c3270.model</a> is 5, and this and
+    <a href=#altScreen>c3270.altScreen</a> are defined, c3270 will automatically change the
+    terminal size when the host switches between the default (24x80) screen
+    and the alternate (27x132) screen.
+</p>
+<a name="dftBufferSize"></a>
+<b>Name:</b> c3270.dftBufferSize<br>
+<b>Type</b>: Integer<br>
+<b>Default</b>: 4096<br>
+<b>Description</b>:<br>
+<p class=indented>    Specifies the default buffer size for DFT IND$FILE file transfers.  This
+    value can be overridden in the File Transfer dialog and by a parameter to
+    the <b>Transfer</b> action.
+</p>
+<a name="devName"></a>
+<b>Name:</b> c3270.devName<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -devname
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Specifies the device name (workstation ID) sent in response to a TELNET
+    NEW-ENVIRON sub-negotiation request, used by iSeries hosts (RFC 4777).
+</p>
+<a name="dsTrace"></a>
+<b>Name:</b> c3270.dsTrace<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -trace 
+, -set dsTrace
+, -clear dsTrace
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 writes a hexadecimal representation of all network
+    traffic (and its interpretation) into a file, which defaults to
+    <b>/tmp/x3trc.<i>pid</i></b>.
+    The directory prefix is defined by <a href=#traceDir>c3270.traceDir</a>.
+    If <a href=#traceFile>c3270.traceFile</a> is defined, it gives the entire pathname
+    and <a href=#traceDir>c3270.traceDir</a> is ignored.
+</p>
+<a name="eof"></a>
+<b>Name:</b> c3270.eof<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^D<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    <p class=indented>
+    When connected in line-at-a-time mode (when c3270 gathers a line of input
+    before forwarding it to the host), entering this character at the
+    keyboard causes
+    the current line of
+    input to be forwarded to the host without a trailing CR/LF sequence.
+    <p class=indented>
+</p>
+<a name="erase"></a>
+<b>Name:</b> c3270.erase<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^?<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    <p class="indented">
+    When connected in line-at-a-time mode (c3270 gathers a line of input
+    before forwarding it ot the host), entering this character at the keyboard
+    will cause c3270 to discard the last character on the input line.
+    <p class="indented">
+    When connected in character-at-a-time mode (c3270 sends each keystroke
+    to the host as it is entered), this is the character that will be sent
+    to the host by the <b>Erase</b> action.
+</p>
+<a name="eventTrace"></a>
+<b>Name:</b> c3270.eventTrace<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -set eventTrace
+, -clear eventTrace
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 traces information about keyboard and mouse
+    events into a file.
+    The default file name is
+    <b>/tmp/x3trc.<i>pid</i></b>.
+    The directory prefix is defined by <a href=#traceDir>c3270.traceDir</a>.
+    If <a href=#traceFile>c3270.traceFile</a> is defined, it gives the entire pathname
+    and <a href=#traceDir>c3270.traceDir</a> is ignored.
+</p>
+<a name="extended"></a>
+<b>Name:</b> c3270.extended<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -extended
+<br>
+<b>Description</b>:<br>
+<p class=indented>    <i>Deprecated resource -- replaced by <a href=#model>c3270.model</a> syntax</i>
+    <p class="indented">
+    Indicates support for the 3270 Extended Data Stream.
+</p>
+<a name="hostname"></a>
+<b>Name:</b> c3270.hostname<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the name of the host to connect to.  The name can include the usual
+    options (prefixes to specify special connection options, LU names, and
+    port).  A hostname specified on the command line takes precedence over
+    <a href=#hostname>c3270.hostname</a>.
+    <p class=indented>
+    The most common use of <a href=#hostname>c3270.hostname</a> is in <i>session files</i>, where a
+    file is used to pass all of the options to establish a c3270 session.
+</p>
+<a name="hostsFile"></a>
+<b>Name:</b> c3270.hostsFile<br>
+<b>Type</b>: String<br>
+<b>Default</b>: /usr/local/etc/x3270/ibm_hosts<br>
+<b>Description</b>:<br>
+<p class=indented>    The pathname of a file containing hostname aliases.
+    The file can also be used to define a set of actions to perform when
+    connecting to a host.
+    <p class="indented">
+    The format of the file is explained on the <i>ibm_hosts</i> manual page.
+    The default pathname is actually <b>ibm_hosts</b> in the directory
+    defined by <a href=#confDir>c3270.confDir</a>.
+</p>
+<a name="icrnl"></a>
+<b>Name:</b> c3270.icrnl<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    It controls whether input carriage returns are mapped to newlines.
+</p>
+<a name="idleCommand"></a>
+<b>Name:</b> c3270.idleCommand<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    When <a href=#idleCommand>c3270.idleCommand</a> is defined, it specifies a command to execute after a
+    period of keyboard inactivity (no AID keys pressed).
+    The <a href=#idleCommand>c3270.idleCommand</a> can be an arbitrary sequence of c3270 actions, but it
+    should include an action which generates an AID (<b>Enter</b>, <b>Clear</b>,
+    <b>PF</b> or <b>PA</b>).
+    <a href=#idleCommandEnabled>c3270.idleCommandEnabled</a> must be true in order for the
+    <a href=#idleCommand>c3270.idleCommand</a> to take effect. (This is so an idle command can be defined,
+    but needs to be enabled explicitly at some point after login.)
+    <a href=#idleTimeout>c3270.idleTimeout</a> specifies the inactivity interval.
+</p>
+<a name="idleCommandEnabled"></a>
+<b>Name:</b> c3270.idleCommandEnabled<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    Controls whether <a href=#idleCommand>c3270.idleCommand</a> has effect as soon as a host session
+    is established.  (This is so an idle command can be defined, but needs to
+    be explicitly enabled at some point after login.)
+</p>
+<a name="idleTimeout"></a>
+<b>Name:</b> c3270.idleTimeout<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ~7m<br>
+<b>Description</b>:<br>
+<p class=indented>    The timeout value for <a href=#idleCommand>c3270.idleCommand</a>.
+    If the value ends in <b>h</b>, it specifies hours; if it ends in
+    <b>m</b> it specifies minutes; if it ends in <b>s</b> or does not have
+    an alphanumeric suffix, it specifies seconds.
+    <p class="indented">
+    If the value begins with a tilde <b>~</b>, the time will be randomly
+    varied +/-10% from the value specified.
+</p>
+<a name="inlcr"></a>
+<b>Name:</b> c3270.inlcr<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    It controls whether input newlines are mapped to carriage returns.
+</p>
+<a name="intr"></a>
+<b>Name:</b> c3270.intr<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^C<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    When this character is typed on the keyboard, the TELNET IP
+    (Interrupt Process) sequence is sent to the host.
+</p>
+<a name="keyFile"></a>
+<b>Name:</b> c3270.keyFile<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -keyfile
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the name of a file containg the private key for the certificate
+    specified by <a href=#certFile>c3270.certFile</a> or <a href=#chainFile>c3270.chainFile</a>.  The default file type is PEM;
+    it can be overridden by <a href=#keyFileType>c3270.keyFileType</a>.  If the private key is encrypted,
+    the password is specified by <a href=#keyPasswd>c3270.keyPasswd</a>.
+</p>
+<a name="keyFileType"></a>
+<b>Name:</b> c3270.keyFileType<br>
+<b>Type</b>: String<br>
+<b>Default</b>: pem<br>
+<b>Command Line</b>: -keyfileType
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the type of the private key file specified by <a href=#keyFile>c3270.keyFile</a>.
+    The value can be <b>pem</b> or <b>asn1</b>.
+</p>
+<a name="keymap"></a>
+<b>Name:</b> c3270.keymap<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -keymap
+<br>
+<b>Description</b>:<br>
+<p class=indented>    The name of the keyboard map to use.
+    It can be a single keymap name or a comma-separated list of keymaps,
+    which will be applied in order.
+    <p class=indented>
+    Each keymap can optionally be defined in three separate parts: a common
+    keymap, which is applied at all times, an NVT-mode keymap, which is
+    applied only in NVT mode, and a 3270-mode keymap, which is only applied
+    in 3270 mode.
+    The NVT-mode keymap has the same name as the common keymap, with the
+    suffix <b>.nvt</b> appended.
+    The 3270-mode keymap has the suffix <b>.3270</b> appended.
+    Thus specifying a <a href=#keymap>c3270.keymap</a> value of <i>foo</i> implies the use of
+    three different keymaps (if found): <b>foo</b>, <b>foo.nvt</b> and
+    <b>foo.3270</b>.
+    <p class=indented>
+    <a href=#keymap>c3270.keymap</a> is only the name; the actual keymap for name
+    <i>foo</i> can be defined either by the resource <a href=#keymap.foo>c3270.keymap.<i>foo</i></a>, or
+    by a
+    <i>keymap file</i>.
+    The keymap file is not searched for in any particular
+    location, nor does it have a special suffix, so <a href=#keymap>c3270.keymap</a> can specify the
+    full pathname of the keymap file.
+</p>
+<a name="keymap.foo"></a>
+<b>Name:</b> c3270.keymap.<i>foo</i><br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    The definition of keymap <i>foo</i>.
+    Please refer to the <i>How To Create a Custom Keymap</i> document for a
+    full description of the syntax.
+</p>
+<a name="keyPasswd"></a>
+<b>Name:</b> c3270.keyPasswd<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -keypasswd
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Gives the password for the private key file specified by <a href=#keyFile>c3270.keyFile</a>, if it
+    is encrypted.
+    The value can take one of two forms. <b>file</b>:<i>filename</i> specifies
+    that the password is in a file. <b>string</b>:<i>string</i> gives the
+    password value in the resource itself.
+</p>
+<a name="kill"></a>
+<b>Name:</b> c3270.kill<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^U<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    <p class=indented>
+    When connected in line-at-a-time mode (when c3270 gathers a line of input
+    before forwarding it to the host), entering this character at the
+    keyboard causes
+    the current input line to be erased.
+    <p class=indented>
+    When connected in character-at-a-time mode (when c3270 sends each
+    keystroke to the host), this is the ASCII character that is sent to
+    the host by the <b>DeleteField</b>
+    action.
+</p>
+<a name="lineWrap"></a>
+<b>Name:</b> c3270.lineWrap<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Command Line</b>: -set lineWrap
+, -clear lineWrap
+<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode.
+    When true, c3270 will automatically insert a 
+    CR/LF sequence when output reaches the end of a line.  When false,
+    output will pile up at the end of each line until the host sends a
+    CR/LF sequence.
+</p>
+<a name="loginMacro"></a>
+<b>Name:</b> c3270.loginMacro<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a sequence of commands to run as soon as a host connection is
+    established.  Usually these would be commands used to navigate through
+    login screens, such <b>String</b>, <b>Tab</b> and <b>Enter</b>.
+    <p class=indented>
+    If a <a href=#hostsFile>c3270.hostsFile</a> is in use and a matching entry is found, the login
+    macro from that entry will be used in preference to the <a href=#loginMacro>c3270.loginMacro</a>.
+</p>
+<a name="lnext"></a>
+<b>Name:</b> c3270.lnext<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^V<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    <p class=indented>
+    When connected in line-at-a-time mode (when c3270 gathers a line of input
+    before forwarding it to the host), entering this character at the
+    keyboard removes any special meaning from the next character entered.
+</p>
+<a name="m3279"></a>
+<b>Name:</b> c3270.m3279<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -color
+<br>
+<b>Description</b>:<br>
+<p class=indented>    <i>Deprecated resource -- replaced by <a href=#model>c3270.model</a> syntax</i>
+    <p class=indented>
+    Indicates support for color (a 3279 terminal).
+</p>
+<a name="menuBar"></a>
+<b>Name:</b> c3270.menuBar<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    If false, the menu bar will not be displayed at the top of
+    the c3270 display, even if the terminal supports a mouse.
+    The menu is still available by pressing Ctrl-N.
+</p>
+<a name="metaEscape"></a>
+<b>Name:</b> c3270.metaEscape<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will assume that pressing a key while holding down the
+    <b>Alt</b> key will cause the terminal to transmit the ASCII ESC character
+    (0x1b) before the key.  Thus c3270 will interpret ESC-x as Alt-x.
+    <p class=indented>
+    When false, ESC is treated like any other input character.
+</p>
+<a name="model"></a>
+<b>Name:</b> c3270.model<br>
+<b>Type</b>: String<br>
+<b>Default</b>: 3279-4-E<br>
+<b>Command Line</b>: -model
+<br>
+<b>Description</b>:<br>
+<p class=indented>    The terminal model that c3270 is emulating.  The model is in three parts,
+    separated by dashes; each part is optional.
+    <ul>
+	<li>3278 or 3279<br>
+	    3278 specifies a monochrome (green) 3270 display.
+	     <br>
+	    3279 specifies a color 3270 display.
+	     </li>
+	<li>2, 3, 4 or 5</br>
+	    The model number, which determines the size of the screen.</br>
+	    Model 2 has 24 rows and 80 columns.</br>
+	    Model 3 has 32 rows and 80 columns.</br>
+	    Model 4 has 43 rows and 80 columns.</br>
+	    Model 5 has 27 rows and 132 columns.</br>
+	    The default is
+	     the largest model that will fit on the console or terminal
+	     emulator window where c3270 is running.
+	     Displaying the OIA (status line) requires one more row than
+	     what is listed above.
+	     </li>
+	<li>E</br>
+	    An optional suffix which indicates support for the 3270 Extended
+	     Data Stream (color, extended attributes, Query Reply).  3279
+	     implies E.</li>
+	     </ul>
+</p>
+<a name="mono"></a>
+<b>Name:</b> c3270.mono<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -mono
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, c3270 will emulate a 3278, and will not use any of the terminal's
+    color attributes.
+</p>
+<a name="monoCase"></a>
+<b>Name:</b> c3270.monoCase<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -set monoCase
+, -clear monoCase
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, causes c3270 to run in uppercase-only mode.
+</p>
+<a name="mouse"></a>
+<b>Name:</b> c3270.mouse<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, enables c3270 to accept mouse-control events on terminals and
+    emulators that support them.  This allows a left mouse click to move the
+    cursor.  On terminals like xterm and gnome-terminal, this means that the
+    usual mouse selection actions must be performed with the Shift key pressed.
+    If false, mouse-control events will not be enabled.
+</p>
+<a name="noPrompt"></a>
+<b>Name:</b> c3270.noPrompt<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, the interactive <b>c3270&gt;</b> prompt will be
+    disabled.  In particular, this means that when c3270 is not connected to
+    a host, a keymap or an external script is the only way to start a new
+    host connection.
+</p>
+<a name="numericLock"></a>
+<b>Name:</b> c3270.numericLock<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, causes c3270 to lock the keyboard when non-numeric data
+    is entered into fields with the Numeric attribute.
+</p>
+<a name="onlcr"></a>
+<b>Name:</b> c3270.onlcr<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    Used only in NVT line-at-a-time mode; similar to the <i>stty</i> parameter
+    of the same name.
+    It controls whether output newlines are mapped to CR/LF sequences.
+</p>
+<a name="oerrLock"></a>
+<b>Name:</b> c3270.oerrLock<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    If true, operator errors (typing into protected fields,
+    insert overflow, etc.) will cause the keyboard to lock with an error
+    message in the OIA (status line).  If false, these
+    errors will simply cause the terminal bell will ring, without any
+    keyboard lock or message.
+</p>
+<a name="once"></a>
+<b>Name:</b> c3270.once<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -once
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will exit as soon as a host disconnects.
+    The default is <b>false</b> if no hostname is specified on the command
+    line or in a session file,
+    <b>true</b> otherwise.
+</p>
+<a name="oversize"></a>
+<b>Name:</b> c3270.oversize<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -oversize
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Sets the screen dimensions to be larger than the default for the
+    chosen model.  Its value is a string in the format
+    <b><i>cols</i>x<i>rows</i></b>.
+    It can also be the string <b>auto</b>, which will cause c3270 to use the
+    entire screen area of the
+    terminal.
+    It is used only if the <a href=#model>c3270.model</a> includes the "-E" (extended
+    data stream) suffix, and only if the specified dimensions are larger than
+    the model number defaults.  Also, only hosts that support the Query Reply
+    structured field will function properly with c3270 in this mode.
+</p>
+<a name="port"></a>
+<b>Name:</b> c3270.port<br>
+<b>Type</b>: String<br>
+<b>Default</b>: telnet<br>
+<b>Command Line</b>: -port
+<br>
+<b>Description</b>:<br>
+<p class=indented>    The name of the default TCP port for c3270 to connect to.  This can be
+    either a symbolic name from /etc/services, or an integer.
+</p>
+<a name="proxy"></a>
+<b>Name:</b> c3270.proxy<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -proxy
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines a proxy server that c3270 will use to connect to hosts.
+    The value is of the form
+    <b><i>type</i>:<i>server</i></b>[<b>:<i>port</i></b>],
+    where options for <i>type</i> are described on the c3270 manual page.
+</p>
+<a name="printerLu"></a>
+<b>Name:</b> c3270.printerLu<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -printerlu
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If a value is set, c3270 will automatically start a
+    pr3287
+    printer session
+    when a host connection is established.
+    If the value is "<b>.</b>", the
+    pr3287
+    session will
+    be associated with the interactive terminal session (this requires that
+    the host supports TN3270E).  Otherwise, the value is taken as the LU
+    name to associate with the printer session.
+</p>
+<a name="printer.assocCommandLine"></a>
+<b>Name:</b> c3270.printer.assocCommandLine<br>
+<b>Type</b>: String<br>
+<b>Default</b>: pr3287 -assoc %L% -command %C% %R% %P% %V% %O% %H%<br>
+<b>Description</b>:<br>
+<p class=indented>    The shell command to use to start a printer session, when associated with
+    the current TN3270E session LU (when <a href=#printerLU>c3270.printerLU</a> is "<b>.</b>").
+    Within the string, the following substitutions
+    are made:
+    <ul>
+	<li><b>%C%</b> is replaced with the <a href=#printer.command>c3270.printer.command</a></li>
+	<li><b>%H%</b> is replaced with the current host name</li>
+	<li><b>%L%</b> is replaced with the current session's LU</li>
+	<li><b>%O%</b> is replaced with the value of <a href=#printer.options>c3270.printer.options</a></li>
+	<li><b>%P%</b> is replaced with the current session's proxy option (<a href=#proxy>c3270.proxy</a>)</li>
+	<li><b>%R%</b> is replaced with an option to pass the current character set</li>
+	<li><b>%V%</b> is replaced with SSL-related options</li>
+    </ul>
+</p>
+<a name="printer.command"></a>
+<b>Name:</b> c3270.printer.command<br>
+<b>Type</b>: String<br>
+<b>Default</b>: lpr<br>
+<b>Description</b>:<br>
+<p class=indented>    The name of the command supplied to the "-command" option of the pr3287
+    program to print each job.  This is the text which is substituted for
+    <b>%C</b> in <a href=#printer.assocCommandLine>c3270.printer.assocCommandLine</a> and <a href=#printer.luCommandLine>c3270.printer.luCommandLine</a>
+    resources.
+</p>
+<a name="printer.luCommandLine"></a>
+<b>Name:</b> c3270.printer.luCommandLine<br>
+<b>Type</b>: String<br>
+<b>Default</b>: pr3287 -command %C% %R% %P% %V% %O% %L%@%H%<br>
+<b>Description</b>:<br>
+<p class=indented>    The shell command to use to start a printer session, when associated with a
+    specific LU.  Within the string, the following substitutions are made:
+    <ul>
+	<li><b>%C%</b> is replaced with <a href=#printer.command>c3270.printer.command</a></li>
+	<li><b>%H%</b> is replaced with the current host name</li>
+	<li><b>%L%</b> is replaced with the LU value entered into the dialog box</li>
+	<li><b>%O%</b> is replaced with the value of <a href=#printer.options>c3270.printer.options</a></li>
+	<li><b>%P%</b> is replaced with current session's proxy option (<a href=#proxy>c3270.proxy</a>)</li>
+	<li><b>%R%</b> is replaced with an option to pass the current character set</li>
+	<li><b>%V%</b> is replaced with SSL-related options</li>
+    </ul>
+</p>
+<a name="printer.options"></a>
+<b>Name:</b> c3270.printer.options<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines extra parameters to substutute for the <b>%O%</b> token in the
+    printer command line.
+</p>
+<a name="printTextCommand"></a>
+<b>Name:</b> c3270.printTextCommand<br>
+<b>Type</b>: String<br>
+<b>Default</b>: lpr<br>
+<b>Description</b>:<br>
+<p class=indented>    The shell command used by the <b>PrintText</b> action.  An ASCII image of
+    the 3270 display becomes the standard input to this command.
+</p>
+<a name="qrBgColor"></a>
+<b>Name:</b> c3270.qrBgColor<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will report in the QueryReply(color) that it supports
+    background color; when false, it will not.  It is disabled by default
+    because certain versions of GDDM are confused by this report and will
+    crash.
+</p>
+<a name="quit"></a>
+<b>Name:</b> c3270.quit<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^\<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    When connected in line-at-a-time mode (when c3270
+    gathers a line of input before forwarding it to the host),
+    entering this character at the keyboard causes the
+    TELNET BREAK sequence to be sent to the host.
+</p>
+<a name="reconnect"></a>
+<b>Name:</b> c3270.reconnect<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will automatically reconnect to a host after it disconnects.
+</p>
+<a name="reverseVideo"></a>
+<b>Name:</b> c3270.reverseVideo<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will use a white background instead of a black one.
+</p>
+<a name="rprnt"></a>
+<b>Name:</b> c3270.rprnt<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^R<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    When connected in line-at-a-time mode (when c3270
+    gathers a line of input before forwarding it to the host), entering this
+    character at the keyboard causes the current input line to be redisplayed.
+</p>
+<a name="sbcsCgcsgid"></a>
+<b>Name:</b> c3270.sbcsCgcsgid<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    Overrides the compiled-in value of the CGCSGID for the current host
+    character set.  The value is an integer, which can be prefixed with '0x'
+    to be in hexadecimal.  The upper 16 bits are the GCSGID (character
+    set) and the lower 16 bits are the CPGID (code page).  This value
+    applies only to the single-byte (SBCS) character set.  Use
+    <a href=#dbcsCgcsgid>c3270.dbcsCgcsgid</a> for the double-byte (DBCS) character set.
+</p>
+<a name="screenTrace"></a>
+<b>Name:</b> c3270.screenTrace<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -set screenTrace
+, -clear screenTrace
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will save an ASCII version of the screen image in
+    a file every time it changes.
+    The file name defaults to
+    <b>/tmp/x3scr.<i>pid</i></b>.
+    The directory prefix is defined by <a href=#traceDir>c3270.traceDir</a>.
+    If <a href=#screenTraceFile>c3270.screenTraceFile</a> is defined, it defines the
+    file name and <a href=#traceDir>c3270.traceDir</a> is ignored.
+</p>
+<a name="screenTraceFile"></a>
+<b>Name:</b> c3270.screenTraceFile<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    If defined, gives the name of the file that screen traces will be
+    written into.
+</p>
+<a name="scriptPort"></a>
+<b>Name:</b> c3270.scriptPort<br>
+<b>Type</b>: Integer<br>
+<b>Command Line</b>: -scriptport
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If defined, c3270 will accept script connections on the specified local TCP
+    port.
+    The rules for the commands passed over these connections are documented
+    in the <i>x3270-script</i> manual page.
+</p>
+<a name="selfSignedOk"></a>
+<b>Name:</b> c3270.selfSignedOk<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will allow SSL authentication with a host that uses a
+    self-signed certificate.
+</p>
+<a name="socket"></a>
+<b>Name:</b> c3270.socket<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -socket
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will create a Unix-domain socket than can be used
+    by an external script to control the session.  The name of the socket is
+    <b>/tmp/x3sck.<i>pid</i></b>.  The <b>-p</b> option of the
+    <i>x3270if</i> command can be used to connect to this socket.
+</p>
+<a name="suppressActions"></a>
+<b>Name:</b> c3270.suppressActions<br>
+<b>Type</b>: String<br>
+<b>Description</b>:<br>
+<p class=indented>    A list of whitespace-separated action names, with or without parentheses,
+    which are to be ignored.  The actions will be completely inaccessible,
+    whether by keymaps, scripts, macros or the Execute an Action menu option.
+    This resource is intended to be used as a security precaution for users
+    who can define their own keymaps, but who do not have access to resource
+    definitions or command-line options.
+</p>
+<a name="termName"></a>
+<b>Name:</b> c3270.termName<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -tn
+<br>
+<b>Description</b>:<br>
+<p class=indented>    An alternate name to be sent in response to the host's TELNET DO OPTION
+    TERMINAL-NAME request.  The default is <b>IBM-</b>, followed by the
+    value of <a href=#model>c3270.model</a>.
+</p>
+<a name="traceDir"></a>
+<b>Name:</b> c3270.traceDir<br>
+<b>Type</b>: String<br>
+<b>Default</b>: /tmp<br>
+<b>Description</b>:<br>
+<p class=indented>    Defines the directory that trace files are written into.
+</p>
+<a name="traceFile"></a>
+<b>Name:</b> c3270.traceFile<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -tracefile
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If defined, gives the name of the file that data stream and event traces
+    will be written into.
+    If it begins with ">>", data will be appended to the file.
+</p>
+<a name="traceFileSize"></a>
+<b>Name:</b> c3270.traceFileSize<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -tracefilesize
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If defined, gives a limit on the size of the file that data stream and
+    event traces will be written into.  If not defined, or defined as <b>0</b>,
+    there
+    will be no limit on the size of the file.  The value is a number, followed
+    by an optional suffix.  If the suffix is <b>K</b> (e.g., 128K),
+    the value will be multiplied by 1024.
+    If the suffix is <b>M</b>, the value will be multiplied
+    by (1024*1024).  The size limit enforced at operation boundaries, not per
+    byte, so the actual file may grow slightly larger.  When the file size
+    exceeds the limit, the trace file will be renamed with a "-" appended and
+    a new file started.
+</p>
+<a name="typeahead"></a>
+<b>Name:</b> c3270.typeahead<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will store keystrokes in a buffer when the
+    keyboard is locked.  When false, these keystrokes will be dropped.
+</p>
+<a name="underscore"></a>
+<b>Name:</b> c3270.underscore<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -set underscore
+, -clear underscore
+<br>
+<b>Description</b>:<br>
+<p class=indented>    When true, c3270 will display fields with the <i>underlined</i>
+    attribute in a special way: blank characters will be translated to
+    underscore (<b>_</b>) characters.  This is needed
+    on terminals that
+    are unable to display real underlined text.
+</p>
+<a name="unlockDelay"></a>
+<b>Name:</b> c3270.unlockDelay<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: true<br>
+<b>Description</b>:<br>
+<p class=indented>    When c3270 sends the host an AID (the <b>Enter</b>, <b>Clear</b>, <b>PF</b>
+    or <b>PA</b>
+    actions), it locks the keyboard until the host sends a reply to
+    unlock it.  Some hosts unlock the keyboard before they are actually
+    finished processing the command, which can cause scripts to malfunction
+    subtly.  To avoid this, c3270 implements a hack to briefly delay actually
+    unlocking the keyboard.
+    When <a href=#unlockDelay>c3270.unlockDelay</a> is true, the keyboard unlock
+    will be delayed for <a href=#unlockDelayMs>c3270.unlockDelayMs</a> milliseconds.  Setting it to
+    false removes this delay, except when executing a macro.
+</p>
+<a name="unlockDelayMs"></a>
+<b>Name:</b> c3270.unlockDelayMs<br>
+<b>Type</b>: Integer<br>
+<b>Default</b>: 350<br>
+<b>Description</b>:<br>
+<p class=indented>    Overrides the default value for the unlock delay (the delay between the
+    host unlocking the keyboard and c3270 actually performing the unlock).
+    The value is in milliseconds; use 0 to turn off the delay completely,
+    including for macros.
+</p>
+<a name="user"></a>
+<b>Name:</b> c3270.user<br>
+<b>Type</b>: String<br>
+<b>Command Line</b>: -user
+<br>
+<b>Description</b>:<br>
+<p class=indented>    Specifies the user name sent in response to a TELNET NEW-ENVIRON
+    sub-negotiation request, used by iSeries hosts (RFC 4777).
+</p>
+<a name="verifyHostCert"></a>
+<b>Name:</b> c3270.verifyHostCert<br>
+<b>Type</b>: Boolean<br>
+<b>Default</b>: false<br>
+<b>Command Line</b>: -verifycert
+<br>
+<b>Description</b>:<br>
+<p class=indented>    If false (the default), c3270 will not verify SSL host certificates.
+    If true or if the <b>-verifycert</b> option is given, c3270 will verify SSL
+    host certificates, and not allow an SSL or SSL/TLS connection to complete
+    unless the host certificate can be validated.
+</p>
+<a name="werase"></a>
+<b>Name:</b> c3270.werase<br>
+<b>Type</b>: String<br>
+<b>Default</b>: ^W<br>
+<b>Description</b>:<br>
+<p class=indented>    This setting is used only in NVT mode, and is similar in function to
+    the <i>stty</i> parameter of the same name.
+    When connected in line-at-a-time mode (when c3270
+    gathers a line of input before forwarding it to the host), entering
+    this character at the keyboard erases the last word of input.
+    <p class=indented>
+    When connected in character-at-a-time mode (when c3270 sends each
+    keystroke to the host), this is the ASCII character that is sent to
+    the host by the <b>DeleteWord</b> action.
+</p>
+<h2>Index of All Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#acs">acs</a></td> <td><a href="#aidWait">aidWait</a></td> <td><a href="#allBold">allBold</a></td> <td><a href="#altScreen">altScreen</a></td> </tr>
+<tr> <td><a href="#asciiBoxDraw">asciiBoxDraw</a></td> <td><a href="#bindLimit">bindLimit</a></td> <td><a href="#blankFill">blankFill</a></td> <td><a href="#bsdTm">bsdTm</a></td> </tr>
+<tr> <td><a href="#caDir">caDir</a></td> <td><a href="#caFile">caFile</a></td> <td><a href="#cbreak">cbreak</a></td> <td><a href="#certFile">certFile</a></td> </tr>
+<tr> <td><a href="#certFileType">certFileType</a></td> <td><a href="#chainFile">chainFile</a></td> <td><a href="#charset">charset</a></td> <td><a href="#color8">color8</a></td> </tr>
+<tr> <td><a href="#composeMap">composeMap</a></td> <td><a href="#composeMap.foo">composeMap.<i>foo</i></a></td> <td><a href="#confDir">confDir</a></td> <td><a href="#cursesColorForDefault">cursesColorForDefault</a></td> </tr>
+<tr> <td><a href="#cursesColorForIntensified">cursesColorForIntensified</a></td> <td><a href="#cursesColorForProtected">cursesColorForProtected</a></td> <td><a href="#cursesColorForProtectedIntensified">cursesColorForProtectedIntensified</a></td> <td><a href="#cursesColorForHostColor0">cursesColorForHostColor0</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorNeutralBlack">cursesColorForHostColorNeutralBlack</a></td> <td><a href="#cursesColorForHostColor1">cursesColorForHostColor1</a></td> <td><a href="#cursesColorForHostColorBlue">cursesColorForHostColorBlue</a></td> <td><a href="#cursesColorForHostColor2">cursesColorForHostColor2</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorRed">cursesColorForHostColorRed</a></td> <td><a href="#cursesColorForHostColor3">cursesColorForHostColor3</a></td> <td><a href="#cursesColorForHostColorPink">cursesColorForHostColorPink</a></td> <td><a href="#cursesColorForHostColor4">cursesColorForHostColor4</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorGreen">cursesColorForHostColorGreen</a></td> <td><a href="#cursesColorForHostColor5">cursesColorForHostColor5</a></td> <td><a href="#cursesColorForHostColorTurquoise">cursesColorForHostColorTurquoise</a></td> <td><a href="#cursesColorForHostColor6">cursesColorForHostColor6</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorYellow">cursesColorForHostColorYellow</a></td> <td><a href="#cursesColorForHostColor7">cursesColorForHostColor7</a></td> <td><a href="#cursesColorForHostColorNeutralWhite">cursesColorForHostColorNeutralWhite</a></td> <td><a href="#cursesColorForHostColor8">cursesColorForHostColor8</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorBlack">cursesColorForHostColorBlack</a></td> <td><a href="#cursesColorForHostColor9">cursesColorForHostColor9</a></td> <td><a href="#cursesColorForHostColorDeepBlue">cursesColorForHostColorDeepBlue</a></td> <td><a href="#cursesColorForHostColor10">cursesColorForHostColor10</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorOrange">cursesColorForHostColorOrange</a></td> <td><a href="#cursesColorForHostColor12">cursesColorForHostColor12</a></td> <td><a href="#cursesColorForHostColorPurple">cursesColorForHostColorPurple</a></td> <td><a href="#cursesColorForHostColor13">cursesColorForHostColor13</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorPaleGreen">cursesColorForHostColorPaleGreen</a></td> <td><a href="#cursesColorForHostColor14">cursesColorForHostColor14</a></td> <td><a href="#cursesColorForHostColorPaleTurquoise">cursesColorForHostColorPaleTurquoise</a></td> <td><a href="#cursesColorForHostColor15">cursesColorForHostColor15</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorGrey">cursesColorForHostColorGrey</a></td> <td><a href="#cursesColorForHostColor16">cursesColorForHostColor16</a></td> <td><a href="#cursesColorForHostColorWhite">cursesColorForHostColorWhite</a></td> <td><a href="#cursesKeypad">cursesKeypad</a></td> </tr>
+<tr> <td><a href="#cursorPos">cursorPos</a></td> <td><a href="#dbcsCgcsgid">dbcsCgcsgid</a></td> <td><a href="#defaultFgBg">defaultFgBg</a></td> <td><a href="#defScreen">defScreen</a></td> </tr>
+<tr> <td><a href="#dftBufferSize">dftBufferSize</a></td> <td><a href="#devName">devName</a></td> <td><a href="#dsTrace">dsTrace</a></td> <td><a href="#eof">eof</a></td> </tr>
+<tr> <td><a href="#erase">erase</a></td> <td><a href="#eventTrace">eventTrace</a></td> <td><a href="#extended">extended</a></td> <td><a href="#hostname">hostname</a></td> </tr>
+<tr> <td><a href="#hostsFile">hostsFile</a></td> <td><a href="#icrnl">icrnl</a></td> <td><a href="#idleCommand">idleCommand</a></td> <td><a href="#idleCommandEnabled">idleCommandEnabled</a></td> </tr>
+<tr> <td><a href="#idleTimeout">idleTimeout</a></td> <td><a href="#inlcr">inlcr</a></td> <td><a href="#intr">intr</a></td> <td><a href="#keyFile">keyFile</a></td> </tr>
+<tr> <td><a href="#keyFileType">keyFileType</a></td> <td><a href="#keymap">keymap</a></td> <td><a href="#keymap.foo">keymap.<i>foo</i></a></td> <td><a href="#keyPasswd">keyPasswd</a></td> </tr>
+<tr> <td><a href="#kill">kill</a></td> <td><a href="#lineWrap">lineWrap</a></td> <td><a href="#loginMacro">loginMacro</a></td> <td><a href="#lnext">lnext</a></td> </tr>
+<tr> <td><a href="#m3279">m3279</a></td> <td><a href="#menuBar">menuBar</a></td> <td><a href="#metaEscape">metaEscape</a></td> <td><a href="#model">model</a></td> </tr>
+<tr> <td><a href="#mono">mono</a></td> <td><a href="#monoCase">monoCase</a></td> <td><a href="#mouse">mouse</a></td> <td><a href="#noPrompt">noPrompt</a></td> </tr>
+<tr> <td><a href="#numericLock">numericLock</a></td> <td><a href="#onlcr">onlcr</a></td> <td><a href="#oerrLock">oerrLock</a></td> <td><a href="#once">once</a></td> </tr>
+<tr> <td><a href="#oversize">oversize</a></td> <td><a href="#port">port</a></td> <td><a href="#proxy">proxy</a></td> <td><a href="#printerLu">printerLu</a></td> </tr>
+<tr> <td><a href="#printer.assocCommandLine">printer.assocCommandLine</a></td> <td><a href="#printer.command">printer.command</a></td> <td><a href="#printer.luCommandLine">printer.luCommandLine</a></td> <td><a href="#printer.options">printer.options</a></td> </tr>
+<tr> <td><a href="#printTextCommand">printTextCommand</a></td> <td><a href="#qrBgColor">qrBgColor</a></td> <td><a href="#quit">quit</a></td> <td><a href="#reconnect">reconnect</a></td> </tr>
+<tr> <td><a href="#reverseVideo">reverseVideo</a></td> <td><a href="#rprnt">rprnt</a></td> <td><a href="#sbcsCgcsgid">sbcsCgcsgid</a></td> <td><a href="#screenTrace">screenTrace</a></td> </tr>
+<tr> <td><a href="#screenTraceFile">screenTraceFile</a></td> <td><a href="#scriptPort">scriptPort</a></td> <td><a href="#selfSignedOk">selfSignedOk</a></td> <td><a href="#socket">socket</a></td> </tr>
+<tr> <td><a href="#suppressActions">suppressActions</a></td> <td><a href="#termName">termName</a></td> <td><a href="#traceDir">traceDir</a></td> <td><a href="#traceFile">traceFile</a></td> </tr>
+<tr> <td><a href="#traceFileSize">traceFileSize</a></td> <td><a href="#typeahead">typeahead</a></td> <td><a href="#underscore">underscore</a></td> <td><a href="#unlockDelay">unlockDelay</a></td> </tr>
+<tr> <td><a href="#unlockDelayMs">unlockDelayMs</a></td> <td><a href="#user">user</a></td> <td><a href="#verifyHostCert">verifyHostCert</a></td> <td><a href="#werase">werase</a></td> </tr>
+</table>
+<h2>Basic Configuration Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#charset">charset</a></td> <td><a href="#hostname">hostname</a></td> <td><a href="#keymap">keymap</a></td> <td><a href="#model">model</a></td> </tr>
+<tr> <td><a href="#port">port</a></td> <td><a href="#proxy">proxy</a></td> <td><a href="#printerLu">printerLu</a></td> </tr>
+</table>
+<h2>Appearance Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#allBold">allBold</a></td> <td><a href="#cursesColorForDefault">cursesColorForDefault</a></td> <td><a href="#cursesColorForIntensified">cursesColorForIntensified</a></td> <td><a href="#cursesColorForProtected">cursesColorForProtected</a></td> </tr>
+<tr> <td><a href="#cursesColorForProtectedIntensified">cursesColorForProtectedIntensified</a></td> <td><a href="#cursesColorForHostColor0">cursesColorForHostColor0</a></td> <td><a href="#cursesColorForHostColorNeutralBlack">cursesColorForHostColorNeutralBlack</a></td> <td><a href="#cursesColorForHostColor1">cursesColorForHostColor1</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorBlue">cursesColorForHostColorBlue</a></td> <td><a href="#cursesColorForHostColor2">cursesColorForHostColor2</a></td> <td><a href="#cursesColorForHostColorRed">cursesColorForHostColorRed</a></td> <td><a href="#cursesColorForHostColor3">cursesColorForHostColor3</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorPink">cursesColorForHostColorPink</a></td> <td><a href="#cursesColorForHostColor4">cursesColorForHostColor4</a></td> <td><a href="#cursesColorForHostColorGreen">cursesColorForHostColorGreen</a></td> <td><a href="#cursesColorForHostColor5">cursesColorForHostColor5</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorTurquoise">cursesColorForHostColorTurquoise</a></td> <td><a href="#cursesColorForHostColor6">cursesColorForHostColor6</a></td> <td><a href="#cursesColorForHostColorYellow">cursesColorForHostColorYellow</a></td> <td><a href="#cursesColorForHostColor7">cursesColorForHostColor7</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorNeutralWhite">cursesColorForHostColorNeutralWhite</a></td> <td><a href="#cursesColorForHostColor8">cursesColorForHostColor8</a></td> <td><a href="#cursesColorForHostColorBlack">cursesColorForHostColorBlack</a></td> <td><a href="#cursesColorForHostColor9">cursesColorForHostColor9</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorDeepBlue">cursesColorForHostColorDeepBlue</a></td> <td><a href="#cursesColorForHostColor10">cursesColorForHostColor10</a></td> <td><a href="#cursesColorForHostColorOrange">cursesColorForHostColorOrange</a></td> <td><a href="#cursesColorForHostColor12">cursesColorForHostColor12</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorPurple">cursesColorForHostColorPurple</a></td> <td><a href="#cursesColorForHostColor13">cursesColorForHostColor13</a></td> <td><a href="#cursesColorForHostColorPaleGreen">cursesColorForHostColorPaleGreen</a></td> <td><a href="#cursesColorForHostColor14">cursesColorForHostColor14</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorPaleTurquoise">cursesColorForHostColorPaleTurquoise</a></td> <td><a href="#cursesColorForHostColor15">cursesColorForHostColor15</a></td> <td><a href="#cursesColorForHostColorGrey">cursesColorForHostColorGrey</a></td> <td><a href="#cursesColorForHostColor16">cursesColorForHostColor16</a></td> </tr>
+<tr> <td><a href="#cursesColorForHostColorWhite">cursesColorForHostColorWhite</a></td> <td><a href="#cursorPos">cursorPos</a></td> <td><a href="#defaultFgBg">defaultFgBg</a></td> <td><a href="#menuBar">menuBar</a></td> </tr>
+<tr> <td><a href="#reverseVideo">reverseVideo</a></td> <td><a href="#underscore">underscore</a></td> </tr>
+</table>
+<h2>NVT-Mode Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#eof">eof</a></td> <td><a href="#erase">erase</a></td> <td><a href="#icrnl">icrnl</a></td> <td><a href="#inlcr">inlcr</a></td> </tr>
+<tr> <td><a href="#intr">intr</a></td> <td><a href="#kill">kill</a></td> <td><a href="#lineWrap">lineWrap</a></td> <td><a href="#lnext">lnext</a></td> </tr>
+<tr> <td><a href="#onlcr">onlcr</a></td> <td><a href="#quit">quit</a></td> <td><a href="#rprnt">rprnt</a></td> <td><a href="#werase">werase</a></td> </tr>
+</table>
+<h2>Protocol Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#bindLimit">bindLimit</a></td> <td><a href="#bsdTm">bsdTm</a></td> <td><a href="#color8">color8</a></td> <td><a href="#dbcsCgcsgid">dbcsCgcsgid</a></td> </tr>
+<tr> <td><a href="#dftBufferSize">dftBufferSize</a></td> <td><a href="#devName">devName</a></td> <td><a href="#sbcsCgcsgid">sbcsCgcsgid</a></td> <td><a href="#termName">termName</a></td> </tr>
+<tr> <td><a href="#user">user</a></td> </tr>
+</table>
+<h2>Terminal Interaction Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#blankFill">blankFill</a></td> <td><a href="#idleCommand">idleCommand</a></td> <td><a href="#idleCommandEnabled">idleCommandEnabled</a></td> <td><a href="#idleTimeout">idleTimeout</a></td> </tr>
+<tr> <td><a href="#mouse">mouse</a></td> <td><a href="#numericLock">numericLock</a></td> <td><a href="#oerrLock">oerrLock</a></td> </tr>
+</table>
+<h2>Security Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#caDir">caDir</a></td> <td><a href="#caFile">caFile</a></td> <td><a href="#certFile">certFile</a></td> <td><a href="#certFileType">certFileType</a></td> </tr>
+<tr> <td><a href="#chainFile">chainFile</a></td> <td><a href="#keyFile">keyFile</a></td> <td><a href="#keyFileType">keyFileType</a></td> <td><a href="#keyPasswd">keyPasswd</a></td> </tr>
+<tr> <td><a href="#noPrompt">noPrompt</a></td> <td><a href="#selfSignedOk">selfSignedOk</a></td> <td><a href="#suppressActions">suppressActions</a></td> <td><a href="#verifyHostCert">verifyHostCert</a></td> </tr>
+</table>
+<h2>Tracing Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#dsTrace">dsTrace</a></td> <td><a href="#eventTrace">eventTrace</a></td> <td><a href="#screenTrace">screenTrace</a></td> <td><a href="#screenTraceFile">screenTraceFile</a></td> </tr>
+<tr> <td><a href="#traceDir">traceDir</a></td> <td><a href="#traceFile">traceFile</a></td> <td><a href="#traceFileSize">traceFileSize</a></td> </tr>
+</table>
+<h2>Other Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#acs">acs</a></td> <td><a href="#aidWait">aidWait</a></td> <td><a href="#altScreen">altScreen</a></td> <td><a href="#asciiBoxDraw">asciiBoxDraw</a></td> </tr>
+<tr> <td><a href="#cbreak">cbreak</a></td> <td><a href="#composeMap">composeMap</a></td> <td><a href="#composeMap.foo">composeMap.<i>foo</i></a></td> <td><a href="#confDir">confDir</a></td> </tr>
+<tr> <td><a href="#cursesKeypad">cursesKeypad</a></td> <td><a href="#defScreen">defScreen</a></td> <td><a href="#hostsFile">hostsFile</a></td> <td><a href="#keymap.foo">keymap.<i>foo</i></a></td> </tr>
+<tr> <td><a href="#loginMacro">loginMacro</a></td> <td><a href="#metaEscape">metaEscape</a></td> <td><a href="#mono">mono</a></td> <td><a href="#monoCase">monoCase</a></td> </tr>
+<tr> <td><a href="#once">once</a></td> <td><a href="#oversize">oversize</a></td> <td><a href="#printer.assocCommandLine">printer.assocCommandLine</a></td> <td><a href="#printer.command">printer.command</a></td> </tr>
+<tr> <td><a href="#printer.luCommandLine">printer.luCommandLine</a></td> <td><a href="#printer.options">printer.options</a></td> <td><a href="#printTextCommand">printTextCommand</a></td> <td><a href="#qrBgColor">qrBgColor</a></td> </tr>
+<tr> <td><a href="#reconnect">reconnect</a></td> <td><a href="#scriptPort">scriptPort</a></td> <td><a href="#socket">socket</a></td> <td><a href="#typeahead">typeahead</a></td> </tr>
+<tr> <td><a href="#unlockDelay">unlockDelay</a></td> <td><a href="#unlockDelayMs">unlockDelayMs</a></td> </tr>
+</table>
+<h2>Deprecated Resources</h2>
+<table border cols=4 width="75%">
+<tr> <td><a href="#extended">extended</a></td> <td><a href="#m3279">m3279</a></td> </tr>
+</table>
+<p><i>c3270 version 3.3.12ga13 Thu May  2 20:12:54 CDT 2013
+
+</body>

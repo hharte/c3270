@@ -49,10 +49,10 @@ user=${LOGNAME-$USER}
 # decimal (0-9) digits only. Length must be even number of digits.
 rpq_timestamp=`date +%Y%m%d%H%M%S`
 
-cat <<EOF
-const char *build = "${1-x3270} v$version $builddate $user";
-const char *app_defaults_version = "$adversion";
-const char sccsid[] = "@(#)${1-x3270} v$version $sccsdate $user";
+cat <<EOF >version.c
+char *build = "${1-x3270} v$version $builddate $user";
+char *app_defaults_version = "$adversion";
+static char sccsid[] = "@(#)${1-x3270} v$version $sccsdate $user";
 
 const char *build_rpq_timestamp = "$rpq_timestamp";
 const char *build_rpq_version = "$version";

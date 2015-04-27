@@ -39,7 +39,9 @@
 
 #if !defined(_WIN32) /*[*/
 #include <sys/wait.h>
-#include <signal.h>
+#if !defined(ANDROID)
+#include <sys/signal.h>
+#endif /* !defined(ANDROID) */
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
